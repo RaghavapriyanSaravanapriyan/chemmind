@@ -5,6 +5,8 @@ from ai.schemas.embedding import EmbeddingRequest, EmbeddingResponse
 from ai.schemas.ingestion import BlockType, ExtractedBlock, ParsedPage, IngestedDocument
 from ai.schemas.vector import VectorPoint, VectorSearchResult
 from ai.schemas.retrieval import RetrievalQuery, RetrievedChunk, RetrievalResponse
+from ai.schemas.rag import RAGRequest, RAGResponse
+from ai.schemas.citation_map import CitationMap, CitedRAGResponse
 
 __all__ = [
     "Role",
@@ -28,4 +30,8 @@ __all__ = [
     "RetrievalQuery",
     "RetrievedChunk",
     "RetrievalResponse",
+    "RAGRequest",
+    "RAGResponse",
+    "CitationMap",
+    "CitedRAGResponse",
 ]
