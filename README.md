@@ -38,13 +38,13 @@ Vector Store (Qdrant) & Embeddings
 | **Stage A3** | Semantic Chunking | **Completed** | Structure & Chemistry-aware chunking for LaTeX papers, atomic equation preservation, chemical entity tagging. |
 | **Stage A4** | Embedding Pipeline | **Completed** | Dense vectorization (`LLMGateway`), Qdrant Vector Store integration (`qdrant-client`), Mock vector store, payload indexing. |
 | **Stage A5** | Basic Retrieval | **Completed** | Dense vector retrieval (`DenseRetriever`), workspace boundary isolation, score thresholding, chemical pre-filtering. |
-| **Stage A6** | LLM Generation | *Next* | Prompt construction and RAG generation via `LLMGateway`. |
-| **Stage A7** | Citation Mapping | Planned | Attaching structured `Citation` metadata with precise source locations. |
-| **Stage A8** | Hybrid Retrieval | Planned | Combining dense vector search with sparse keyword indexing. |
-| **Stage A9** | Reranking | Planned | Cross-encoder reranking for candidate evidence optimization. |
-| **Stage A10**| Multi-Doc Reasoning | Planned | RAG cross-examination across multiple user-selected papers. |
-| **Stage A11**| Grounded Quizzes | Planned | Generating objective-focused quizzes with source attribution. |
-| **Stage A12**| Chemistry Engine | Planned | Chemical entity extraction, SMILES validation, and 3D mol generation. |
+| **Stage A6** | LLM Generation | **Completed** | Chemistry RAG prompt template (`build_rag_prompt`), grounding rules, `RAGGenerationService` (sync & streaming token output). |
+| **Stage A7** | Citation Mapping | **Completed** | Inline marker extraction (`[1]`, `[2]`), `CitationResolver`, source document excerpt resolution, `CitedRAGResponse`. |
+| **Stage A8** | Hybrid Retrieval | **Completed** | `BM25KeywordRetriever` sparse keyword engine, chemistry tokenization, Reciprocal Rank Fusion (`rrf`), `HybridRetriever`. |
+| **Stage A9** | Reranking | **Completed** | `ChemistryCrossEncoderReranker`, chemical formula boost, section header alignment, LaTeX equation weightings. |
+| **Stage A10**| Multi-Doc Reasoning | **Completed** | `MultiDocReasoningEngine`, cross-document comparison matrix, conflict detection, citation mapping. |
+| **Stage A11**| Grounded Quizzes | **Completed** | `QuizGenerator`, grounded multiple choice & short answer questions, distractor generation, citation backing. |
+| **Stage A12**| Chemistry Engine | **Completed** | `ChemistryEngine`, SMILES validation, molecular weight calculation, chemical formula parsing, 3D coordinate generation. |
 
 ---
 

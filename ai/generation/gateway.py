@@ -5,6 +5,7 @@ from ai.providers.base_embedding import BaseEmbeddingProvider
 from ai.providers.ollama_llm import OllamaLLMProvider
 from ai.providers.mock_llm import MockLLMProvider
 from ai.providers.ollama_embedding import OllamaEmbeddingProvider, MockEmbeddingProvider
+from ai.providers.openai_provider import OpenAILLMProvider, OpenAIEmbeddingProvider
 from ai.schemas.llm import LLMRequest, LLMResponse, StreamChunk
 from ai.schemas.embedding import EmbeddingRequest, EmbeddingResponse
 from ai.utils.logger import logger
@@ -27,9 +28,11 @@ class LLMGateway:
         # Register default providers
         self.register_llm_provider(OllamaLLMProvider())
         self.register_llm_provider(MockLLMProvider())
+        self.register_llm_provider(OpenAILLMProvider())
 
         self.register_embedding_provider(OllamaEmbeddingProvider())
         self.register_embedding_provider(MockEmbeddingProvider())
+        self.register_embedding_provider(OpenAIEmbeddingProvider())
 
         # Set active providers
         self._active_llm_provider_name = settings.ai_provider
