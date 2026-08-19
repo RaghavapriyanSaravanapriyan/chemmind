@@ -1,3 +1,4 @@
+from app.schemas.ai import AIChatRequest, AIChatResponse, AIChatStreamChunk
 from app.schemas.conversation import (
     CitationCreate,
     CitationRead,
@@ -45,4 +46,7 @@ __all__ = [
     "ConversationCreate",
     "ConversationRead",
     "ConversationUpdate",
+    "AIChatRequest",
+    "AIChatResponse",
+    "AIChatStreamChunk",
 ]

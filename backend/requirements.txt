@@ -14,3 +14,4 @@ passlib[bcrypt]>=1.7.4
 bcrypt>=4.1.2
 python-multipart>=0.0.9
 aiofiles>=23.2.1
+sse-starlette>=2.0.0
