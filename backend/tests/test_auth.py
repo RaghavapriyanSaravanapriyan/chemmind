@@ -1,5 +1,7 @@
+from datetime import timedelta
 import pytest
 from httpx import AsyncClient
+from app.core.security import create_access_token
 
 
 @pytest.mark.asyncio
@@ -25,11 +27,9 @@ async def test_register_duplicate_email_fails(async_client: AsyncClient):
         "password": "Password123!",
         "full_name": "Duplicate User",
     }
-    # First registration
     res1 = await async_client.post("/api/v1/auth/register", json=payload)
     assert res1.status_code == 201
 
-    # Second registration with same email
     res2 = await async_client.post("/api/v1/auth/register", json=payload)
     assert res2.status_code == 400
     assert "already exists" in res2.json()["detail"]
@@ -73,6 +73,17 @@ async def test_login_invalid_password_fails(async_client: AsyncClient):
 
 
 @pytest.mark.asyncio
+async def test_login_nonexistent_email_fails(async_client: AsyncClient):
+    login_payload = {
+        "email": "nonexistent@chemmind.org",
+        "password": "AnyPassword123",
+    }
+    response = await async_client.post("/api/v1/auth/login", json=login_payload)
+    assert response.status_code == 401
+    assert "Incorrect email or password" in response.json()["detail"]
+
+
+@pytest.mark.asyncio
 async def test_get_me_authenticated(async_client: AsyncClient):
     reg_payload = {
         "email": "meuser@chemmind.org",
@@ -93,3 +104,21 @@ async def test_get_me_authenticated(async_client: AsyncClient):
     user_data = me_res.json()
     assert user_data["email"] == reg_payload["email"]
     assert user_data["full_name"] == reg_payload["full_name"]
+
+
+@pytest.mark.asyncio
+async def test_get_me_invalid_token_fails(async_client: AsyncClient):
+    headers = {"Authorization": "Bearer invalid.jwt.token"}
+    me_res = await async_client.get("/api/v1/auth/me", headers=headers)
+    assert me_res.status_code == 401
+
+
+@pytest.mark.asyncio
+async def test_get_me_expired_token_fails(async_client: AsyncClient):
+    expired_token = create_access_token(
+        subject="some-user-id",
+        expires_delta=timedelta(seconds=-10),
+    )
+    headers = {"Authorization": f"Bearer {expired_token}"}
+    me_res = await async_client.get("/api/v1/auth/me", headers=headers)
+    assert me_res.status_code == 401
