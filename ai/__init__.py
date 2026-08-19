@@ -5,6 +5,7 @@ ChemMind AI Subsystem Package
 from ai.config import settings, AISettings
 from ai.generation.gateway import LLMGateway, gateway
 from ai.generation.rag_service import RAGGenerationService
+from ai.providers import OpenAILLMProvider, OpenAIEmbeddingProvider
 from ai.ingestion import IngestionPipeline, PDFDocumentParser, BaseDocumentParser
 from ai.chunking import LaTeXChemistryChunker, BaseChunker, extract_chemical_entities
 from ai.vector_store import BaseVectorStore, QdrantVectorStore, MockVectorStore
@@ -12,6 +13,10 @@ from ai.embeddings import EmbeddingPipeline
 from ai.retrieval import BaseRetriever, DenseRetriever, BM25KeywordRetriever, HybridRetriever, reciprocal_rank_fusion
 from ai.prompts import CHEMISTRY_RAG_SYSTEM_PROMPT, build_rag_prompt
 from ai.citations import CitationResolver
+from ai.reranking import BaseReranker, ChemistryCrossEncoderReranker
+from ai.reasoning import MultiDocReasoningEngine
+from ai.quizzes import QuizGenerator
+from ai.chemistry import ChemistryEngine
 from ai.schemas import (
     Role,
     ChatMessage,
@@ -38,6 +43,20 @@ from ai.schemas import (
     RAGResponse,
     CitationMap,
     CitedRAGResponse,
+    RerankRequest,
+    RerankedChunk,
+    RerankResponse,
+    MultiDocAnalysisRequest,
+    ComparisonMatrixItem,
+    DiscrepancyItem,
+    MultiDocAnalysisResponse,
+    QuizType,
+    QuizOption,
+    QuizQuestion,
+    QuizGenerationRequest,
+    QuizResponse,
+    MolecularProperties,
+    Mol3DCoordinates,
 )
 
 __all__ = [
@@ -45,6 +64,8 @@ __all__ = [
     "AISettings",
     "LLMGateway",
     "gateway",
+    "OpenAILLMProvider",
+    "OpenAIEmbeddingProvider",
     "RAGGenerationService",
     "IngestionPipeline",
     "PDFDocumentParser",
@@ -64,6 +85,11 @@ __all__ = [
     "CHEMISTRY_RAG_SYSTEM_PROMPT",
     "build_rag_prompt",
     "CitationResolver",
+    "BaseReranker",
+    "ChemistryCrossEncoderReranker",
+    "MultiDocReasoningEngine",
+    "QuizGenerator",
+    "ChemistryEngine",
     "Role",
     "ChatMessage",
     "TokenUsage",
@@ -89,4 +115,18 @@ __all__ = [
     "RAGResponse",
     "CitationMap",
     "CitedRAGResponse",
+    "RerankRequest",
+    "RerankedChunk",
+    "RerankResponse",
+    "MultiDocAnalysisRequest",
+    "ComparisonMatrixItem",
+    "DiscrepancyItem",
+    "MultiDocAnalysisResponse",
+    "QuizType",
+    "QuizOption",
+    "QuizQuestion",
+    "QuizGenerationRequest",
+    "QuizResponse",
+    "MolecularProperties",
+    "Mol3DCoordinates",
 ]
