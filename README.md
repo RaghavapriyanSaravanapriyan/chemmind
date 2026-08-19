@@ -34,9 +34,9 @@ Vector Store (Qdrant) & Embeddings
 | Stage | Phase | Status | Description |
 |---|---|---|---|
 | **Stage A1** | Package Foundation | **Completed** | Interfaces, Pydantic schemas, `LLMGateway`, Ollama & Mock providers, configuration system, test suite. |
-| **Stage A2** | Document Ingestion | *Next* | PDF parsing, text & layout extraction, page/section mapping, figure/table metadata preservation. |
-| **Stage A3** | Semantic Chunking | Planned | Structure-aware chunking preserving document headers, page bounds, and chemical entities. |
-| **Stage A4** | Embedding Pipeline | Planned | Vectorization of document chunks and indexing into Qdrant collections. |
+| **Stage A2** | Document Ingestion | **Completed** | PDF parsing (`pypdf`), text/layout extraction, page/section mapping, metadata & SHA256 checksum generation. |
+| **Stage A3** | Semantic Chunking | **Completed** | Structure & Chemistry-aware chunking for LaTeX papers, atomic equation preservation, chemical entity tagging. |
+| **Stage A4** | Embedding Pipeline | *Next* | Vectorization of document chunks and indexing into Qdrant collections. |
 | **Stage A5** | Basic Retrieval | Planned | Dense vector retrieval with workspace/document filtering. |
 | **Stage A6** | LLM Generation | Planned | Prompt construction and RAG generation via `LLMGateway`. |
 | **Stage A7** | Citation Mapping | Planned | Attaching structured `Citation` metadata with precise source locations. |

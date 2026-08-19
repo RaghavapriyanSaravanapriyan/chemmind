@@ -1,9 +1,11 @@
 """
-ChemMind AI Package Foundation
+ChemMind AI Subsystem Package
 """
 
 from ai.config import settings, AISettings
 from ai.generation.gateway import LLMGateway
+from ai.ingestion import IngestionPipeline, PDFDocumentParser, BaseDocumentParser
+from ai.chunking import LaTeXChemistryChunker, BaseChunker, extract_chemical_entities
 from ai.schemas import (
     Role,
     ChatMessage,
@@ -17,12 +19,22 @@ from ai.schemas import (
     DocumentChunk,
     EmbeddingRequest,
     EmbeddingResponse,
+    BlockType,
+    ExtractedBlock,
+    ParsedPage,
+    IngestedDocument,
 )
 
 __all__ = [
     "settings",
     "AISettings",
     "LLMGateway",
+    "IngestionPipeline",
+    "PDFDocumentParser",
+    "BaseDocumentParser",
+    "LaTeXChemistryChunker",
+    "BaseChunker",
+    "extract_chemical_entities",
     "Role",
     "ChatMessage",
     "TokenUsage",
@@ -35,4 +47,8 @@ __all__ = [
     "DocumentChunk",
     "EmbeddingRequest",
     "EmbeddingResponse",
+    "BlockType",
+    "ExtractedBlock",
+    "ParsedPage",
+    "IngestedDocument",
 ]
