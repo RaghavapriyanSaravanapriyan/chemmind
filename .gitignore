@@ -16,6 +16,10 @@ htmlcov/
 .env
 .env.local
 
+# File Uploads & Local Storage
+uploads/
+backend/uploads/
+
 # IDEs & Editors
 .vscode/
 .idea/
