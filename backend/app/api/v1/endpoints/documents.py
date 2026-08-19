@@ -11,6 +11,7 @@ from app.models.document import Document, DocumentMetadata
 from app.models.user import User
 from app.schemas.document import DocumentRead
 from app.services.storage import storage_service
+from app.services.usage import usage_service
 
 router = APIRouter()
 
@@ -35,6 +36,9 @@ async def upload_document(
             detail="Only workspace owners or editors can upload documents",
         )
 
+    # Check workspace document limit quota
+    await usage_service.check_quota_available(db, workspace_id, "documents_uploaded", 1)
+
     # Validate file extension
     file_ext = os.path.splitext(file.filename or "")[1].lower()
     if file_ext not in settings.ALLOWED_EXTENSIONS:
@@ -46,7 +50,7 @@ async def upload_document(
     # Save file to object storage
     storage_path, checksum, file_size = await storage_service.save_upload_file(workspace_id, file)
 
-    # Check file size limit
+    # Check file size limit & storage quota
     max_size_bytes = settings.MAX_UPLOAD_SIZE_MB * 1024 * 1024
     if file_size > max_size_bytes:
         storage_service.delete_file(storage_path)
@@ -54,6 +58,12 @@ async def upload_document(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail=f"File size exceeds maximum allowed size of {settings.MAX_UPLOAD_SIZE_MB}MB",
         )
+
+    try:
+        await usage_service.check_quota_available(db, workspace_id, "storage_bytes", file_size)
+    except HTTPException:
+        storage_service.delete_file(storage_path)
+        raise
 
     # Create Document record
     document = Document(
@@ -75,6 +85,10 @@ async def upload_document(
         title=file.filename,
     )
     db.add(doc_meta)
+
+    # Record usage metrics
+    await usage_service.record_usage(db, workspace_id, current_user.id, "documents_uploaded", 1)
+    await usage_service.record_usage(db, workspace_id, current_user.id, "storage_bytes", file_size)
 
     await db.commit()
     await db.refresh(document)

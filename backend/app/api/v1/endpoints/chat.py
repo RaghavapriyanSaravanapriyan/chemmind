@@ -11,6 +11,7 @@ from app.models.user import User
 from app.schemas.ai import AIChatRequest, AIChatResponse
 from app.schemas.conversation import CitationRead
 from app.services.ai_gateway import ai_gateway
+from app.services.usage import usage_service
 
 router = APIRouter()
 
@@ -37,6 +38,9 @@ async def chat_query(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Only workspace owners or editors can send chat messages",
         )
+
+    # Check AI request quota
+    await usage_service.check_quota_available(db, workspace_id, "ai_requests", 1)
 
     # 1. Save user query message
     user_msg = Message(
@@ -78,6 +82,9 @@ async def chat_query(
         db.add(citation)
         citation_objs.append(citation)
 
+    # 5. Record usage metric
+    await usage_service.record_usage(db, workspace_id, current_user.id, "ai_requests", 1)
+
     await db.commit()
     await db.refresh(asst_msg)
 
@@ -110,6 +117,9 @@ async def chat_stream(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Only workspace owners or editors can stream chat messages",
         )
+
+    # Check AI request quota
+    await usage_service.check_quota_available(db, workspace_id, "ai_requests", 1)
 
     # Save user message first
     user_msg = Message(
@@ -158,6 +168,7 @@ async def chat_stream(
             )
             db.add(citation)
 
+        await usage_service.record_usage(db, workspace_id, current_user.id, "ai_requests", 1)
         await db.commit()
 
     return EventSourceResponse(event_generator())

@@ -11,6 +11,7 @@ from app.schemas.conversation import (
 )
 from app.schemas.document import DocumentMetadataRead, DocumentRead, DocumentStatusUpdate
 from app.schemas.token import Token, TokenPayload
+from app.schemas.usage import QuotaLimits, UsageRecordRead, WorkspaceUsageSummary
 from app.schemas.user import UserBase, UserCreate, UserLogin, UserRead, UserUpdate
 from app.schemas.workspace import (
     WorkspaceBase,
@@ -49,4 +50,7 @@ __all__ = [
     "AIChatRequest",
     "AIChatResponse",
     "AIChatStreamChunk",
+    "UsageRecordRead",
+    "QuotaLimits",
+    "WorkspaceUsageSummary",
 ]
