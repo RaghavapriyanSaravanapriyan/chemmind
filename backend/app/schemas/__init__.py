@@ -1,3 +1,14 @@
+from app.schemas.conversation import (
+    CitationCreate,
+    CitationRead,
+    ConversationBase,
+    ConversationCreate,
+    ConversationRead,
+    ConversationUpdate,
+    MessageCreate,
+    MessageRead,
+)
+from app.schemas.document import DocumentMetadataRead, DocumentRead, DocumentStatusUpdate
 from app.schemas.token import Token, TokenPayload
 from app.schemas.user import UserBase, UserCreate, UserLogin, UserRead, UserUpdate
 from app.schemas.workspace import (
@@ -23,4 +34,15 @@ __all__ = [
     "WorkspaceMemberRead",
     "WorkspaceRead",
     "WorkspaceUpdate",
+    "DocumentRead",
+    "DocumentMetadataRead",
+    "DocumentStatusUpdate",
+    "CitationCreate",
+    "CitationRead",
+    "MessageCreate",
+    "MessageRead",
+    "ConversationBase",
+    "ConversationCreate",
+    "ConversationRead",
+    "ConversationUpdate",
 ]

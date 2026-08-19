@@ -1,3 +1,4 @@
+import os
 from typing import List
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
@@ -23,6 +24,11 @@ class Settings(BaseSettings):
         "http://localhost:3000",
         "http://127.0.0.1:3000",
     ]
+
+    # File Storage Settings
+    STORAGE_DIR: str = os.path.join(os.getcwd(), "uploads")
+    MAX_UPLOAD_SIZE_MB: int = 50
+    ALLOWED_EXTENSIONS: List[str] = [".pdf"]
 
     # Database Configuration
     POSTGRES_SERVER: str = "localhost"
