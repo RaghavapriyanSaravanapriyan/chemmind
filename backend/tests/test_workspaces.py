@@ -44,7 +44,6 @@ async def test_list_workspaces(async_client: AsyncClient):
     _, token = await create_user_and_login(async_client, "owner2@chemmind.org", "Owner Two")
     headers = {"Authorization": f"Bearer {token}"}
 
-    # Create two workspaces
     await async_client.post("/api/v1/workspaces", json={"name": "Workspace A"}, headers=headers)
     await async_client.post("/api/v1/workspaces", json={"name": "Workspace B"}, headers=headers)
 
@@ -56,7 +55,6 @@ async def test_list_workspaces(async_client: AsyncClient):
 
 @pytest.mark.asyncio
 async def test_workspace_access_isolation(async_client: AsyncClient):
-    # User 1 creates workspace
     _, token1 = await create_user_and_login(async_client, "user1@chemmind.org", "User One")
     res = await async_client.post(
         "/api/v1/workspaces",
@@ -65,7 +63,6 @@ async def test_workspace_access_isolation(async_client: AsyncClient):
     )
     ws_id = res.json()["id"]
 
-    # User 2 tries to access User 1's workspace
     _, token2 = await create_user_and_login(async_client, "user2@chemmind.org", "User Two")
     get_res = await async_client.get(
         f"/api/v1/workspaces/{ws_id}",
@@ -76,7 +73,6 @@ async def test_workspace_access_isolation(async_client: AsyncClient):
 
 @pytest.mark.asyncio
 async def test_add_member_and_access(async_client: AsyncClient):
-    # User 1 creates workspace
     _, token1 = await create_user_and_login(async_client, "user_a@chemmind.org", "User A")
     res = await async_client.post(
         "/api/v1/workspaces",
@@ -85,10 +81,8 @@ async def test_add_member_and_access(async_client: AsyncClient):
     )
     ws_id = res.json()["id"]
 
-    # User 2 registers
     user2, token2 = await create_user_and_login(async_client, "user_b@chemmind.org", "User B")
 
-    # User 1 adds User 2 as member
     add_res = await async_client.post(
         f"/api/v1/workspaces/{ws_id}/members",
         json={"user_id": user2["id"], "role": "editor"},
@@ -96,13 +90,87 @@ async def test_add_member_and_access(async_client: AsyncClient):
     )
     assert add_res.status_code == 201
 
-    # User 2 can now access workspace
     get_res = await async_client.get(
         f"/api/v1/workspaces/{ws_id}",
         headers={"Authorization": f"Bearer {token2}"},
     )
     assert get_res.status_code == 200
     assert get_res.json()["name"] == "Shared Lab"
+
+
+@pytest.mark.asyncio
+async def test_add_duplicate_member_fails(async_client: AsyncClient):
+    _, token1 = await create_user_and_login(async_client, "dup_owner@chemmind.org", "Dup Owner")
+    ws_res = await async_client.post(
+        "/api/v1/workspaces",
+        json={"name": "Dup Member Lab"},
+        headers={"Authorization": f"Bearer {token1}"},
+    )
+    ws_id = ws_res.json()["id"]
+
+    user2, _ = await create_user_and_login(async_client, "dup_target@chemmind.org", "Dup Target")
+
+    # First add
+    res1 = await async_client.post(
+        f"/api/v1/workspaces/{ws_id}/members",
+        json={"user_id": user2["id"], "role": "editor"},
+        headers={"Authorization": f"Bearer {token1}"},
+    )
+    assert res1.status_code == 201
+
+    # Second add of same user
+    res2 = await async_client.post(
+        f"/api/v1/workspaces/{ws_id}/members",
+        json={"user_id": user2["id"], "role": "editor"},
+        headers={"Authorization": f"Bearer {token1}"},
+    )
+    assert res2.status_code == 400
+    assert "already a member" in res2.json()["detail"]
+
+
+@pytest.mark.asyncio
+async def test_add_nonexistent_user_as_member_fails(async_client: AsyncClient):
+    _, token = await create_user_and_login(async_client, "invalid_mem_owner@chemmind.org", "Mem Owner")
+    ws_res = await async_client.post(
+        "/api/v1/workspaces",
+        json={"name": "Invalid Member Space"},
+        headers={"Authorization": f"Bearer {token}"},
+    )
+    ws_id = ws_res.json()["id"]
+
+    res = await async_client.post(
+        f"/api/v1/workspaces/{ws_id}/members",
+        json={"user_id": "nonexistent-user-uuid-99999", "role": "editor"},
+        headers={"Authorization": f"Bearer {token}"},
+    )
+    assert res.status_code == 404
+
+
+@pytest.mark.asyncio
+async def test_non_owner_delete_workspace_fails(async_client: AsyncClient):
+    _, token1 = await create_user_and_login(async_client, "real_owner@chemmind.org", "Real Owner")
+    ws_res = await async_client.post(
+        "/api/v1/workspaces",
+        json={"name": "Protected Space"},
+        headers={"Authorization": f"Bearer {token1}"},
+    )
+    ws_id = ws_res.json()["id"]
+
+    user2, token2 = await create_user_and_login(async_client, "editor_user@chemmind.org", "Editor User")
+
+    # Add user2 as editor
+    await async_client.post(
+        f"/api/v1/workspaces/{ws_id}/members",
+        json={"user_id": user2["id"], "role": "editor"},
+        headers={"Authorization": f"Bearer {token1}"},
+    )
+
+    # Editor tries to delete workspace
+    del_res = await async_client.delete(
+        f"/api/v1/workspaces/{ws_id}",
+        headers={"Authorization": f"Bearer {token2}"},
+    )
+    assert del_res.status_code == 403
 
 
 @pytest.mark.asyncio
@@ -117,7 +185,6 @@ async def test_update_and_delete_workspace(async_client: AsyncClient):
     )
     ws_id = create_res.json()["id"]
 
-    # Update
     update_res = await async_client.put(
         f"/api/v1/workspaces/{ws_id}",
         json={"name": "Updated Workspace Name"},
@@ -126,10 +193,8 @@ async def test_update_and_delete_workspace(async_client: AsyncClient):
     assert update_res.status_code == 200
     assert update_res.json()["name"] == "Updated Workspace Name"
 
-    # Delete
     del_res = await async_client.delete(f"/api/v1/workspaces/{ws_id}", headers=headers)
     assert del_res.status_code == 204
 
-    # Verify deleted
     get_res = await async_client.get(f"/api/v1/workspaces/{ws_id}", headers=headers)
     assert get_res.status_code == 404

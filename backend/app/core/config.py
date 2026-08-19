@@ -30,6 +30,11 @@ class Settings(BaseSettings):
     MAX_UPLOAD_SIZE_MB: int = 50
     ALLOWED_EXTENSIONS: List[str] = [".pdf"]
 
+    # Workspace Quota Limits
+    DEFAULT_WORKSPACE_DOC_LIMIT: int = 50
+    DEFAULT_WORKSPACE_STORAGE_MB: int = 500
+    DEFAULT_WORKSPACE_AI_REQUEST_LIMIT: int = 200
+
     # Database Configuration
     POSTGRES_SERVER: str = "localhost"
     POSTGRES_PORT: int = 5432

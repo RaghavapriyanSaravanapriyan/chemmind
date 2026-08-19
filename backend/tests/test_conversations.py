@@ -9,7 +9,6 @@ async def test_create_conversation_success(async_client: AsyncClient):
     user, token = await create_user_and_login(async_client, "conv_user1@chemmind.org", "Conv User 1")
     headers = {"Authorization": f"Bearer {token}"}
 
-    # Create workspace
     ws_res = await async_client.post(
         "/api/v1/workspaces",
         json={"name": "Quantum Chat Lab"},
@@ -17,7 +16,6 @@ async def test_create_conversation_success(async_client: AsyncClient):
     )
     ws_id = ws_res.json()["id"]
 
-    # Create conversation
     payload = {"title": "Discussion on Density Functional Theory"}
     response = await async_client.post(
         f"/api/v1/workspaces/{ws_id}/conversations",
@@ -44,7 +42,6 @@ async def test_add_messages_with_citations(async_client: AsyncClient):
     )
     ws_id = ws_res.json()["id"]
 
-    # Upload document
     pdf_bytes = b"%PDF-1.4 paper content..."
     files = {"file": ("dft_paper.pdf", io.BytesIO(pdf_bytes), "application/pdf")}
     doc_res = await async_client.post(
@@ -54,7 +51,6 @@ async def test_add_messages_with_citations(async_client: AsyncClient):
     )
     doc_id = doc_res.json()["id"]
 
-    # Create conversation
     conv_res = await async_client.post(
         f"/api/v1/workspaces/{ws_id}/conversations",
         json={"title": "RAG Q&A Session"},
@@ -62,7 +58,6 @@ async def test_add_messages_with_citations(async_client: AsyncClient):
     )
     conv_id = conv_res.json()["id"]
 
-    # Add user message
     user_msg_res = await async_client.post(
         f"/api/v1/workspaces/{ws_id}/conversations/{conv_id}/messages",
         json={"sender": "user", "content": "What energy functional is used?"},
@@ -70,7 +65,6 @@ async def test_add_messages_with_citations(async_client: AsyncClient):
     )
     assert user_msg_res.status_code == 201
 
-    # Add assistant response with citations
     assistant_msg_res = await async_client.post(
         f"/api/v1/workspaces/{ws_id}/conversations/{conv_id}/messages",
         json={
@@ -94,7 +88,6 @@ async def test_add_messages_with_citations(async_client: AsyncClient):
     assert asst_data["citations"][0]["page"] == 14
     assert asst_data["citations"][0]["chunk_id"] == "chunk-9921"
 
-    # Fetch conversation details & check full message history
     history_res = await async_client.get(
         f"/api/v1/workspaces/{ws_id}/conversations/{conv_id}",
         headers=headers,
@@ -105,8 +98,26 @@ async def test_add_messages_with_citations(async_client: AsyncClient):
 
 
 @pytest.mark.asyncio
+async def test_get_nonexistent_conversation_fails(async_client: AsyncClient):
+    _, token = await create_user_and_login(async_client, "conv_404_user@chemmind.org", "Conv 404 User")
+    headers = {"Authorization": f"Bearer {token}"}
+
+    ws_res = await async_client.post(
+        "/api/v1/workspaces",
+        json={"name": "Space for Conv 404"},
+        headers=headers,
+    )
+    ws_id = ws_res.json()["id"]
+
+    res = await async_client.get(
+        f"/api/v1/workspaces/{ws_id}/conversations/nonexistent-conv-id-99999",
+        headers=headers,
+    )
+    assert res.status_code == 404
+
+
+@pytest.mark.asyncio
 async def test_conversation_access_isolation(async_client: AsyncClient):
-    # User 1 creates conversation
     _, token1 = await create_user_and_login(async_client, "owner_conv@chemmind.org", "Owner Conv")
     ws_res = await async_client.post(
         "/api/v1/workspaces",
@@ -122,7 +133,6 @@ async def test_conversation_access_isolation(async_client: AsyncClient):
     )
     conv_id = conv_res.json()["id"]
 
-    # User 2 attempts to fetch conversation
     _, token2 = await create_user_and_login(async_client, "outsider_conv@chemmind.org", "Outsider Conv")
     get_res = await async_client.get(
         f"/api/v1/workspaces/{ws_id}/conversations/{conv_id}",
@@ -150,14 +160,12 @@ async def test_delete_conversation(async_client: AsyncClient):
     )
     conv_id = conv_res.json()["id"]
 
-    # Delete
     del_res = await async_client.delete(
         f"/api/v1/workspaces/{ws_id}/conversations/{conv_id}",
         headers=headers,
     )
     assert del_res.status_code == 204
 
-    # Verify 404
     get_res = await async_client.get(
         f"/api/v1/workspaces/{ws_id}/conversations/{conv_id}",
         headers=headers,
