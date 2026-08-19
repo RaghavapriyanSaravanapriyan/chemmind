@@ -100,3 +100,6 @@ class LLMGateway:
         """Generates embeddings using the configured embedding provider."""
         provider = self.get_embedding_provider(provider_name)
         return await provider.embed(request)
+
+gateway = LLMGateway()
+

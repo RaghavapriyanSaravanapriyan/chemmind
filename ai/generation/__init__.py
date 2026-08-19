@@ -1,3 +1,3 @@
-from ai.generation.gateway import LLMGateway
+from ai.generation.gateway import LLMGateway, gateway
 
-__all__ = ["LLMGateway"]
+__all__ = ["LLMGateway", "gateway"]
