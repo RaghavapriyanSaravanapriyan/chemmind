@@ -78,6 +78,10 @@ async def chat_query(
             chunk_id=cit.chunk_id,
             section=cit.section,
             excerpt=cit.excerpt,
+            source_type=cit.source_type,
+            url=cit.url,
+            title=cit.title,
+            domain=cit.domain,
         )
         db.add(citation)
         citation_objs.append(citation)
@@ -165,6 +169,10 @@ async def chat_stream(
                 chunk_id=cit_dict.get("chunk_id"),
                 section=cit_dict.get("section"),
                 excerpt=cit_dict.get("excerpt"),
+                source_type=cit_dict.get("source_type", "document"),
+                url=cit_dict.get("url"),
+                title=cit_dict.get("title"),
+                domain=cit_dict.get("domain"),
             )
             db.add(citation)
 

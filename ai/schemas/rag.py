@@ -1,4 +1,4 @@
-from typing import List, Optional
+from typing import Any, List, Optional
 from pydantic import BaseModel, Field
 from ai.schemas.llm import TokenUsage
 from ai.schemas.retrieval import RetrievedChunk
@@ -13,10 +13,15 @@ class RAGRequest(BaseModel):
     temperature: float = Field(default=0.2, ge=0.0, le=2.0, description="LLM sampling temperature")
     model: Optional[str] = Field(default=None, description="Optional LLM model override")
     stream: bool = Field(default=False, description="Enable streaming token output")
+    enable_web_search: Optional[bool] = Field(default=None, description="Force or enable web search tool execution")
 
 class RAGResponse(BaseModel):
     answer: str = Field(..., description="Generated answer text")
     retrieved_chunks: List[RetrievedChunk] = Field(default_factory=list, description="Retrieved candidate evidence chunks used")
+    web_results: List[Any] = Field(default_factory=list, description="Web search results retrieved if invoked")
+    citations: List[Any] = Field(default_factory=list, description="Resolved document & web citations")
+    routing_mode: Optional[str] = Field(default=None, description="Agentic routing decision mode used")
     usage: Optional[TokenUsage] = Field(default=None, description="Token consumption metrics")
     model: str = Field(..., description="LLM model used for generation")
     workspace_id: str = Field(..., description="Workspace ID")
+

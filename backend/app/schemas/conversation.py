@@ -8,6 +8,11 @@ class CitationBase(BaseModel):
     chunk_id: str | None = None
     section: str | None = None
     excerpt: str | None = None
+    source_type: str = "document"
+    url: str | None = None
+    title: str | None = None
+    domain: str | None = None
+
 
 
 class CitationCreate(CitationBase):
