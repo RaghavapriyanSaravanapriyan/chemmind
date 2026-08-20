@@ -81,6 +81,10 @@ class Citation(Base):
     chunk_id: Mapped[str | None] = mapped_column(String(255), nullable=True)
     section: Mapped[str | None] = mapped_column(String(255), nullable=True)
     excerpt: Mapped[str | None] = mapped_column(Text, nullable=True)
+    source_type: Mapped[str] = mapped_column(String(50), default="document", nullable=False)
+    url: Mapped[str | None] = mapped_column(String(1024), nullable=True)
+    title: Mapped[str | None] = mapped_column(String(512), nullable=True)
+    domain: Mapped[str | None] = mapped_column(String(255), nullable=True)
 
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), default=lambda: datetime.now(timezone.utc), nullable=False
@@ -88,3 +92,4 @@ class Citation(Base):
 
     message = relationship("Message", back_populates="citations")
     document = relationship("Document")
+

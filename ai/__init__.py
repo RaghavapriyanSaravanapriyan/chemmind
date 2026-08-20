@@ -17,6 +17,15 @@ from ai.reranking import BaseReranker, ChemistryCrossEncoderReranker
 from ai.reasoning import MultiDocReasoningEngine
 from ai.quizzes import QuizGenerator
 from ai.chemistry import ChemistryEngine
+from ai.agentic import (
+    AgenticRAGEngine,
+    WebSearchTool,
+    InternalDocSearchTool,
+    ChemistryPropertyTool,
+    AgenticRouter,
+    RoutingDecision,
+    RoutingMode,
+)
 from ai.schemas import (
     Role,
     ChatMessage,
@@ -90,6 +99,13 @@ __all__ = [
     "MultiDocReasoningEngine",
     "QuizGenerator",
     "ChemistryEngine",
+    "AgenticRAGEngine",
+    "WebSearchTool",
+    "InternalDocSearchTool",
+    "ChemistryPropertyTool",
+    "AgenticRouter",
+    "RoutingDecision",
+    "RoutingMode",
     "Role",
     "ChatMessage",
     "TokenUsage",
