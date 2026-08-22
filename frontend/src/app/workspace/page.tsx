@@ -1,12 +1,31 @@
 "use client";
 
-import { ChevronLeft, ChevronRight, Menu, MoreHorizontal, Sparkles, ZoomIn, ZoomOut } from "lucide-react";
+import { useState } from "react";
+import Link from "next/link";
+import { AnimatePresence, motion } from "framer-motion";
+import { BookOpen, ChevronLeft, ChevronRight, FileText, Menu, MoreHorizontal, PanelLeftClose, Plus, Search, Sparkles, ZoomIn, ZoomOut } from "lucide-react";
+import { cn } from "@/lib/utils";
 import { ThemeToggle } from "@/components/ui/theme-toggle";
 
+const ease = [0.16, 1, 0.3, 1] as const;
+
 export default function WorkspacePage() {
+  const [sidebarOpen, setSidebarOpen] = useState(true);
+
   return (
     <div className="flex h-[100dvh] overflow-hidden bg-background text-foreground">
-      <main className="flex h-full min-h-0 min-w-0 flex-1 flex-col">
+      <AnimatePresence>
+        {sidebarOpen && (
+          <>
+            <motion.div onClick={() => setSidebarOpen(false)} className="fixed inset-0 z-30 bg-foreground/20 backdrop-blur-[1px] xl:hidden" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} />
+            <motion.aside initial={{ x: -256, opacity: 0 }} animate={{ x: 0, opacity: 1 }} exit={{ x: -256, opacity: 0 }} transition={{ duration: 0.35, ease }} className="fixed inset-y-0 left-0 z-40 flex w-64 flex-col border-r border-border/60 bg-surface shadow-2xl xl:relative xl:z-10 xl:shadow-none">
+              <Sidebar onClose={() => setSidebarOpen(false)} />
+            </motion.aside>
+          </>
+        )}
+      </AnimatePresence>
+
+      <main className="flex h-full min-h-0 min-w-0 flex-1 flex-col xl:mr-[352px]">
         <header className="flex h-14 shrink-0 items-center justify-between border-b border-border/60 bg-surface/90 px-3 backdrop-blur-xl sm:px-5">
           <div className="flex min-w-0 items-center gap-3">
             <ToolbarIcon label="Open navigation">
@@ -90,3 +109,7 @@ function ToolbarIcon({ children, label, onClick }: { children: React.ReactNode; 
     </button>
   );
 }
+
+function Sidebar({ onClose }: { onClose: () => void }) { return <><div className="flex items-center justify-between px-5 py-5"><Link href="/" className="text-[15px] font-bold tracking-[-0.04em]">CHEMMIND</Link><ToolbarIcon label="Close navigation" onClick={onClose}><PanelLeftClose size={17}/></ToolbarIcon></div><div className="px-4"><button className="flex w-full items-center justify-center gap-2 rounded-xl bg-foreground px-4 py-2.5 text-sm font-semibold text-background transition-transform hover:-translate-y-px active:translate-y-0"><Plus size={16}/> New conversation</button></div><nav className="mt-6 px-3"><p className="px-3 text-[10px] font-semibold tracking-[0.14em] text-muted uppercase">Workspace</p><div className="mt-2 space-y-1"><NavItem active icon={<Sparkles size={16}/>} label="Home"/><NavItem icon={<FileText size={16}/>} label="Documents"/><NavItem icon={<Search size={16}/>} label="Search"/></div></nav><div className="mt-7 flex-1 overflow-y-auto px-3"><p className="px-3 text-[10px] font-semibold tracking-[0.14em] text-muted uppercase">Recent conversations</p><div className="mt-2 space-y-1"><Conversation label="Organic chemistry" active/><Conversation label="Physics notes"/><Conversation label="Exam preparation"/><Conversation label="Research paper"/></div></div><div className="border-t border-border/60 p-4"><Link href="/" className="flex items-center gap-3 rounded-xl px-3 py-2 text-sm text-muted transition-colors hover:bg-background hover:text-foreground"><BookOpen size={16}/> Return to ChemMind</Link></div></>; }
+function NavItem({ icon, label, active = false }: { icon: React.ReactNode; label: string; active?: boolean }) { return <button className={cn("flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium transition-colors", active ? "bg-background text-foreground" : "text-muted hover:bg-background hover:text-foreground")}>{icon}{label}</button>; }
+function Conversation({ label, active = false }: { label: string; active?: boolean }) { return <button className={cn("w-full truncate rounded-lg px-3 py-2 text-left text-sm transition-colors", active ? "bg-accent/8 font-medium text-foreground" : "text-muted hover:bg-background hover:text-foreground")}>{label}</button>; }
