@@ -70,7 +70,7 @@ export default function LandingPage() {
         </section>
 
         {/* ─── MARQUEE ─── */}
-        <section className="overflow-hidden border-y border-border/40 bg-surface/50 py-5">
+        <section className="overflow-hidden py-5">
           <div className="animate-marquee flex whitespace-nowrap">
             {Array.from({ length: 2 }).map((_, i) => (
               <div key={i} className="flex shrink-0 items-center gap-12 px-6">
@@ -117,7 +117,7 @@ export default function LandingPage() {
         </section>
 
         {/* ─── FEATURE STORIES ─── */}
-        <section className="border-y border-border/40 bg-surface/40 py-24 sm:py-32 lg:py-40">
+        <section className="py-24 sm:py-32 lg:py-40">
           <div className="mx-auto max-w-7xl space-y-28 px-5 sm:px-8 lg:space-y-40 lg:px-12">
             <FeatureStory eyebrow="Your workspace, in context" title="Every source. One uninterrupted flow." body="Keep your library, the page you are reading, and the conversation it inspires in a single considered view." visual={<LibraryVisual />} />
             <FeatureStory reverse eyebrow="Understanding, on demand" title="The assistant knows what you're looking at." body="Ask for a simpler explanation, a sharper summary, or the idea behind the idea — without leaving the document." visual={<ChatVisual />} />
@@ -158,7 +158,7 @@ export default function LandingPage() {
         </section>
 
         {/* ─── FINAL CTA ─── */}
-        <section className="relative overflow-hidden border-t border-border/40">
+        <section className="relative overflow-hidden">
           <div className="cta-glow py-28 sm:py-40 lg:py-48">
             <Reveal>
               <div className="mx-auto max-w-3xl px-6 text-center">

@@ -118,7 +118,7 @@ html {
   content: "";
   position: absolute;
   inset: 0;
-  background: radial-gradient(ellipse at 50% 80%, rgba(255,160,60,0.15), transparent 70%);
+  background: transparent;
   pointer-events: none;
 }
 
