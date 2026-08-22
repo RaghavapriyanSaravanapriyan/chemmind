@@ -1,7 +1,8 @@
 @import "tailwindcss";
 
 @theme {
-  --font-sans: -apple-system, BlinkMacSystemFont, "SF Pro Display", "SF Pro Text", "Helvetica Neue", Arial, system-ui, sans-serif;
+  --font-sans: "Inter", -apple-system, BlinkMacSystemFont, "Helvetica Neue", Arial, system-ui, sans-serif;
+  --font-serif: "Instrument Serif", "Georgia", "Times New Roman", serif;
   
   --color-background: var(--background);
   --color-surface: var(--surface);
@@ -18,25 +19,25 @@
 }
 
 :root {
-  --background: #F5F5F7;
+  --background: #F4F4F0;
   --surface: #FFFFFF;
-  --foreground: #1D1D1F;
-  --muted: #6E6E73;
-  --border: #D2D2D7;
-  --accent: #0066CC;
-  --accent-hover: #0077ED;
+  --foreground: #171717;
+  --muted: #6B6B6B;
+  --border: #E0E0DB;
+  --accent: #171717;
+  --accent-hover: #333333;
   color-scheme: light;
   scroll-behavior: smooth;
 }
 
 html.dark {
-  --background: #000000;
-  --surface: #1C1C1E;
-  --foreground: #F5F5F7;
-  --muted: #98989D;
-  --border: #38383A;
-  --accent: #0A84FF;
-  --accent-hover: #409CFF;
+  --background: #0A0A0A;
+  --surface: #161616;
+  --foreground: #F0F0EC;
+  --muted: #8A8A8A;
+  --border: #2A2A2A;
+  --accent: #F0F0EC;
+  --accent-hover: #D4D4D0;
   color-scheme: dark;
 }
 
@@ -57,6 +58,14 @@ html.theme-transition * {
   transition-timing-function: ease;
 }
 
+/* Serif heading style — editorial feel like Underleaf */
+.heading-serif {
+  font-family: var(--font-serif);
+  font-style: italic;
+  font-weight: 400;
+  letter-spacing: -0.02em;
+}
+
 /* Base heading styles */
 h1, h2, h3, h4, h5, h6 {
   font-weight: 600;
@@ -66,6 +75,66 @@ h1, h2, h3, h4, h5, h6 {
 h1 {
   font-weight: 700;
   letter-spacing: -0.03em;
+}
+
+/* Smooth scroll for hash links */
+html {
+  scroll-behavior: smooth;
+}
+
+/* Custom scrollbar */
+::-webkit-scrollbar {
+  width: 6px;
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+::-webkit-scrollbar-thumb {
+  background: var(--border);
+  border-radius: 3px;
+}
+
+/* Glow effect for mockup */
+.mockup-glow {
+  position: relative;
+}
+.mockup-glow::before {
+  content: "";
+  position: absolute;
+  inset: -1px;
+  border-radius: inherit;
+  background: linear-gradient(180deg, rgba(120,119,198,0.3) 0%, rgba(255,183,77,0.15) 50%, rgba(120,119,198,0.3) 100%);
+  z-index: -1;
+  filter: blur(40px);
+  opacity: 0.6;
+}
+
+/* CTA glow */
+.cta-glow {
+  position: relative;
+  overflow: hidden;
+}
+.cta-glow::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: radial-gradient(ellipse at 50% 80%, rgba(255,160,60,0.15), transparent 70%);
+  pointer-events: none;
+}
+
+/* Marquee */
+@keyframes marquee {
+  0% { transform: translateX(0); }
+  100% { transform: translateX(-50%); }
+}
+.animate-marquee {
+  animation: marquee 40s linear infinite;
+}
+
+/* Stagger children animation */
+@keyframes stagger-in {
+  from { opacity: 0; transform: translateY(20px); }
+  to { opacity: 1; transform: translateY(0); }
 }
 
 /* Reduced motion support */
