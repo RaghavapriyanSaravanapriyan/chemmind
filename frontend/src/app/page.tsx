@@ -1,20 +1,28 @@
 "use client";
 
 import Link from "next/link";
-import { motion } from "framer-motion";
+import { motion, useScroll, useTransform } from "framer-motion";
 import { ArrowUpRight } from "lucide-react";
 import { Footer } from "@/components/layout/Footer";
 import { Navbar } from "@/components/layout/Navbar";
 import { Button } from "@/components/ui/button";
 
 export default function LandingPage() {
+  const { scrollYProgress } = useScroll();
+  const mockupScale = useTransform(scrollYProgress, [0, 0.26], [0.955, 1]);
+  const mockupY = useTransform(scrollYProgress, [0, 0.26], [32, 0]);
+
   return (
     <div className="min-h-screen overflow-x-clip bg-background selection:bg-accent/20">
       <Navbar />
       <main>
         <section className="relative pt-36 sm:pt-44 lg:pt-52"><div className="mx-auto max-w-7xl px-5 sm:px-8 lg:px-12"><motion.div initial={{ opacity: 0, y: 22 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.9, ease: [0.16, 1, 0.3, 1] }} className="mx-auto max-w-5xl text-center"><p className="mb-6 text-sm font-semibold tracking-[0.16em] text-accent uppercase">ChemMind</p><h1 className="text-balance text-[3.4rem] font-bold leading-[0.96] tracking-[-0.065em] text-foreground sm:text-7xl md:text-8xl lg:text-[7.5rem]">Think Smarter.<br /><span className="text-muted">Learn Deeper.</span></h1><p className="mx-auto mt-8 max-w-2xl text-pretty text-lg leading-8 text-muted sm:mt-10 sm:text-2xl sm:leading-9">Your reading, research, and reasoning—together in one calm, intelligent workspace.</p><div className="mt-9 flex flex-col items-stretch justify-center gap-3 sm:mt-11 sm:flex-row sm:items-center"><Link href="/workspace" className="sm:w-auto"><Button size="lg" className="group w-full rounded-full px-7 shadow-[0_8px_24px_rgba(29,29,31,0.12)] sm:w-auto">Open workspace <ArrowUpRight className="ml-1 size-4 transition-transform duration-300 group-hover:-translate-y-0.5 group-hover:translate-x-0.5" /></Button></Link><Link href="#features" className="sm:w-auto"><Button size="lg" variant="secondary" className="w-full rounded-full px-7 sm:w-auto">Explore ChemMind</Button></Link></div></motion.div></div></section>
+        <section className="relative px-3 pb-20 pt-16 sm:px-6 sm:pt-20 lg:pb-32 lg:pt-24"><div className="pointer-events-none absolute inset-x-0 bottom-0 h-2/3 bg-[radial-gradient(ellipse_at_center,rgba(0,102,204,0.09),transparent_64%)]" /><motion.div style={{ scale: mockupScale, y: mockupY }} initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ duration: 1.1, delay: 0.18 }} className="relative mx-auto max-w-[1480px]"><WorkspacePreview /></motion.div></section>
       </main>
       <Footer />
     </div>
   );
 }
+
+function WorkspacePreview() { return <div className="aspect-[1.12/1] overflow-hidden rounded-[24px] border border-border/70 bg-surface shadow-[0_28px_80px_rgba(29,29,31,0.18)] sm:aspect-[16/10] sm:rounded-[32px]"><div className="flex h-11 items-center border-b border-border/60 bg-surface px-4 sm:h-12 sm:px-5"><div className="flex gap-1.5"><i className="size-2.5 rounded-full bg-[#FF5F57]"/><i className="size-2.5 rounded-full bg-[#FEBC2E]"/><i className="size-2.5 rounded-full bg-[#28C840]"/></div><div className="mx-auto hidden rounded-md bg-background px-16 py-1 text-[9px] text-muted sm:block">chemmind.app</div></div><div className="flex h-[calc(100%-2.75rem)] sm:h-[calc(100%-3rem)]"><aside className="hidden w-[23%] border-r border-border/60 bg-surface p-4 md:block"><p className="text-[10px] font-bold tracking-[0.12em]">CHEMMIND</p><div className="mt-7 rounded-lg bg-foreground px-3 py-2 text-[10px] font-semibold text-background">+ New conversation</div><div className="mt-5 space-y-1 text-[10px] text-muted"><p className="rounded-md bg-border/25 px-2 py-2 text-foreground">Home</p><p className="px-2 py-2">Documents</p><p className="px-2 py-2">Recent</p></div></aside><article className="min-w-0 flex-1 bg-[#fafafa] px-5 py-6 sm:px-10 sm:py-8 md:px-14"><div className="mx-auto max-w-[480px]"><p className="text-[9px] font-semibold tracking-[0.12em] text-accent uppercase">Molecular chemistry</p><h3 className="mt-3 text-lg font-bold tracking-[-0.04em] sm:text-2xl">1. Molecular Structure</h3><div className="mt-5 space-y-2"><Line w="w-full"/><Line w="w-[93%]"/><Line w="w-[76%]"/></div><h4 className="mt-7 text-sm font-semibold sm:text-base">VSEPR Theory</h4><div className="mt-3 space-y-2"><Line w="w-full"/><Line w="w-full"/><Line w="w-[84%]"/></div><div className="mt-6 flex h-20 items-center justify-center rounded-xl border border-border/50 bg-surface sm:h-28"><div className="flex items-end gap-3"><span className="size-7 rounded-full border-[3px] border-accent/60"/><span className="mb-6 size-5 rounded-full bg-accent/30"/><span className="mb-3 size-4 rounded-full bg-foreground/25"/></div></div></div></article><aside className="hidden w-[29%] min-w-[230px] border-l border-border/60 bg-surface lg:flex lg:flex-col"><div className="border-b border-border/60 px-5 py-4"><div className="flex items-center gap-2 text-xs font-semibold"><span className="flex size-5 items-center justify-center rounded-full bg-accent text-[10px] text-white">✦</span>ChemMind</div><p className="mt-1 text-[9px] text-muted">Grounded in this document</p></div><div className="flex-1 space-y-4 p-4"><div className="ml-auto max-w-[86%] rounded-2xl rounded-tr-md bg-border/20 px-3 py-2 text-[10px] leading-4">Explain VSEPR theory simply.</div><div className="max-w-[92%] rounded-2xl rounded-tl-md bg-accent/8 px-3 py-2 text-[10px] leading-4">Electron pairs naturally spread out around an atom, because like charges repel.</div></div><div className="m-4 rounded-xl border border-border/70 px-3 py-2 text-[10px] text-muted">Ask about this page…</div></aside></div></div>; }
+function Line({ w }: { w: string }) { return <div className={`h-1.5 ${w} rounded-full bg-border/35`} />; }
