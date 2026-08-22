@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import Link from "next/link";
 import { AnimatePresence, motion } from "framer-motion";
 import { BookOpen, ChevronLeft, ChevronRight, FileText, Menu, MoreHorizontal, PanelLeftClose, Plus, Search, Sparkles, ZoomIn, ZoomOut } from "lucide-react";
@@ -10,7 +10,15 @@ import { ThemeToggle } from "@/components/ui/theme-toggle";
 const ease = [0.16, 1, 0.3, 1] as const;
 
 export default function WorkspacePage() {
-  const [sidebarOpen, setSidebarOpen] = useState(true);
+  const [sidebarOpen, setSidebarOpen] = useState(false);
+
+  useEffect(() => {
+    const media = window.matchMedia("(min-width: 1280px)");
+    const update = () => setSidebarOpen(media.matches);
+    update();
+    media.addEventListener("change", update);
+    return () => media.removeEventListener("change", update);
+  }, []);
 
   return (
     <div className="flex h-[100dvh] overflow-hidden bg-background text-foreground">
@@ -28,7 +36,7 @@ export default function WorkspacePage() {
       <main className="flex h-full min-h-0 min-w-0 flex-1 flex-col xl:mr-[352px]">
         <header className="flex h-14 shrink-0 items-center justify-between border-b border-border/60 bg-surface/90 px-3 backdrop-blur-xl sm:px-5">
           <div className="flex min-w-0 items-center gap-3">
-            <ToolbarIcon label="Open navigation">
+            <ToolbarIcon label="Open navigation" onClick={() => setSidebarOpen(true)}>
               <Menu size={18} />
             </ToolbarIcon>
             <div className="min-w-0">
