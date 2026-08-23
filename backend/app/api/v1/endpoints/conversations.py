@@ -40,6 +40,8 @@ async def get_conversation_with_permission(
             detail="Conversation not found",
         )
 
+
+
     return conversation, role
 
 

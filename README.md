@@ -1,116 +1,136 @@
-# ChemMind — AI & RAG Subsystem (`rag` Branch)
+# ChemMind — Production Agentic RAG & Chemistry Deep Engine
 
-> **Branch:** `rag`  
-> **Subsystem:** AI, RAG Pipeline, Vector Retrieval, LLM Integration, & Chemistry Tools  
-> **Status:** Stage A1 Complete (Foundation & Gateway)
+ChemMind is an agentic research platform designed for molecular chemistry, literature review, and interactive paper synthesis. It seamlessly connects a **Next.js 16 Frontend**, a **FastAPI Microservices Backend**, and an **Agentic AI & RAG Subsystem** capable of running on local Ollama models.
 
 ---
 
-## Architecture Overview
+## 🏛️ Technical Stack & Architectural Pillars
 
-The `ai/` package provides a provider-independent AI and RAG engine for ChemMind. It handles scientific paper ingestion, semantic chunking, vector indexing in Qdrant, grounded RAG generation with structured citations, and chemistry entity reasoning via RDKit.
-
-### Core Architectural Principles
-1. **Provider Independence:** Application logic depends on standard interfaces (`BaseLLMProvider`, `BaseEmbeddingProvider`) and the `LLMGateway`, never hardcoded to specific model APIs or Ollama vendor details.
-2. **Deterministic Chemistry:** LLMs are used for intent classification and tool selection; exact chemical calculations, SMILES validation, and 3D molecular coordinate generation are delegated to RDKit.
-3. **Structured Citations:** Answers include first-class citation metadata (workspace ID, document ID, page number, section, bounding box coordinates) enabling instant document viewer navigation.
-4. **Testability:** Complete unit test coverage across configuration, schemas, providers, and gateway delegation.
+ChemMind is built upon three distinct architectural pillars:
 
 ```text
-Application Services / Backend
-            ↓
-       LLM Gateway
-   ┌────────┴────────┐
-Ollama            Mock / External APIs
-   │
-   ▼
-Vector Store (Qdrant) & Embeddings
+┌────────────────────────────────────────────────────────────────────────┐
+│                        FRONTEND (Next.js 16)                           │
+│   • React 19 / TypeScript           • KaTeX LaTeX Document Reader      │
+│   • Tailwind CSS & Framer Motion    • 3D Molecular Mesh & Property UI  │
+│   • SSE Real-time Chat Streaming    • Workspace & Document Sidebars    │
+└───────────────────────────────────┬────────────────────────────────────┘
+                                    │ REST / SSE API Protocols
+                                    ▼
+┌────────────────────────────────────────────────────────────────────────┐
+│                        BACKEND (FastAPI API)                           │
+│   • Async SQLAlchemy (SQLite/Postgres)  • SSE Streaming Endpoint       │
+│   • Pydantic v2 Data Contracts           • Usage Limits & Auto-auth     │
+│   • Document Ingestion & Storage        • Multi-Doc / Quiz API Routers  │
+└───────────────────────────────────┬────────────────────────────────────┘
+                                    │ AI Gateway Bridge
+                                    ▼
+┌────────────────────────────────────────────────────────────────────────┐
+│                      AI & AGENTIC RAG SUBSYSTEM                        │
+│   • Agentic Router & Web Fallback   • Chemistry Property Engine (RDKit) │
+│   • Dense/Sparse Hybrid Retrieval   • Grounded Quiz Generator          │
+│   • Citation Resolver & Linker      • Multi-Doc Reasoning Engine       │
+│   • Ollama Local LLM Provider       • Provider-Agnostic Gateway        │
+└────────────────────────────────────────────────────────────────────────┘
 ```
 
 ---
 
-## Subsystem Roadmap (Stages A1 – A12)
+### Pillar 1: Modern Frontend Architecture (`frontend/`)
 
-| Stage | Phase | Status | Description |
-|---|---|---|---|
-| **Stage A1** | Package Foundation | **Completed** | Interfaces, Pydantic schemas, `LLMGateway`, Ollama & Mock providers, configuration system, test suite. |
-| **Stage A2** | Document Ingestion | **Completed** | PDF parsing (`pypdf`), text/layout extraction, page/section mapping, metadata & SHA256 checksum generation. |
-| **Stage A3** | Semantic Chunking | **Completed** | Structure & Chemistry-aware chunking for LaTeX papers, atomic equation preservation, chemical entity tagging. |
-| **Stage A4** | Embedding Pipeline | **Completed** | Dense vectorization (`LLMGateway`), Qdrant Vector Store integration (`qdrant-client`), Mock vector store, payload indexing. |
-| **Stage A5** | Basic Retrieval | **Completed** | Dense vector retrieval (`DenseRetriever`), workspace boundary isolation, score thresholding, chemical pre-filtering. |
-| **Stage A6** | LLM Generation | **Completed** | Chemistry RAG prompt template (`build_rag_prompt`), grounding rules, `RAGGenerationService` (sync & streaming token output). |
-| **Stage A7** | Citation Mapping | **Completed** | Inline marker extraction (`[1]`, `[2]`), `CitationResolver`, source document excerpt resolution, `CitedRAGResponse`. |
-| **Stage A8** | Hybrid Retrieval | **Completed** | `BM25KeywordRetriever` sparse keyword engine, chemistry tokenization, Reciprocal Rank Fusion (`rrf`), `HybridRetriever`. |
-| **Stage A9** | Reranking | **Completed** | `ChemistryCrossEncoderReranker`, chemical formula boost, section header alignment, LaTeX equation weightings. |
-| **Stage A10**| Multi-Doc Reasoning | **Completed** | `MultiDocReasoningEngine`, cross-document comparison matrix, conflict detection, citation mapping. |
-| **Stage A11**| Grounded Quizzes | **Completed** | `QuizGenerator`, grounded multiple choice & short answer questions, distractor generation, citation backing. |
-| **Stage A12**| Chemistry Engine | **Completed** | `ChemistryEngine`, SMILES validation, molecular weight calculation, chemical formula parsing, 3D coordinate generation. |
+- **Framework & Core**: Next.js 16 (App Router with Turbopack), React 19, TypeScript.
+- **Styling & Aesthetics**: Custom Vanilla CSS & Tailwind CSS with curated color schemes, dark/light theme toggle, glassmorphism overlays, and Framer Motion micro-animations.
+- **LaTeX Document Rendering**: KaTeX engine rendering inline math ($\psi_{sp^3}$) and display block equations ($\theta_{\min}$) with section navigation.
+- **3D Molecular Visualizer**: Interactive 3D molecular mesh renderer calculating real 3D atomic coordinates, SMILES syntax validation, empirical formula, and molecular weights.
+- **Workspace Dashboard**: Dynamic document upload, file switching sidebar, quiz assessment modals, and multi-document comparison synthesis UI.
+- **Real-Time Assistant Panel**: Dynamic model selector (Ollama Local, ChemMind RAG, GPT-4o, Claude 3.5 Sonnet), SSE token streaming, and clickable citation links.
 
 ---
 
-## File Inventory & Descriptions
+### Pillar 2: Backend Microservices API (`backend/`)
 
-```text
-ai/
-├── requirements.txt         # Core dependencies (pydantic, httpx, pytest, etc.)
-├── config.py                # Pydantic settings with environment variable resolution
-├── __init__.py              # Package entry point exposing gateway, settings, and schemas
-│
-├── schemas/                 # Data contracts & Pydantic models
-│   ├── __init__.py
-│   ├── llm.py               # ChatMessage, Role, LLMRequest, LLMResponse, StreamChunk, TokenUsage
-│   ├── citation.py          # Citation, SourceLocation (page numbers, section, bbox)
-│   ├── document.py          # DocumentMetadata, DocumentChunk
-│   └── embedding.py         # EmbeddingRequest, EmbeddingResponse
-│
-├── providers/               # Abstract & Concrete AI Backends
-│   ├── __init__.py
-│   ├── base_llm.py          # BaseLLMProvider abstract class (generate, stream)
-│   ├── base_embedding.py    # BaseEmbeddingProvider abstract class (embed)
-│   ├── ollama_llm.py        # Ollama REST client implementation (/api/chat)
-│   ├── ollama_embedding.py  # Ollama REST embedding client (/api/embed) & MockEmbeddingProvider
-│   └── mock_llm.py          # Fast offline Mock LLM provider for unit testing & development
-│
-├── generation/              # Gateway & LLM Orchestration
-│   ├── __init__.py
-│   └── gateway.py           # LLMGateway for dynamic provider switching and invocation
-│
-├── utils/                   # Subsystem Utilities
-│   ├── __init__.py
-│   └── logger.py            # Centralized structured logger for the ai/ package
-│
-└── tests/                   # Automated Test Suite
-    ├── __init__.py
-    ├── test_config.py       # Configuration and env override tests
-    ├── test_schemas.py      # Pydantic schema validation & serialization tests
-    ├── test_providers.py    # Mock & Provider execution unit tests
-    └── test_gateway.py      # LLMGateway delegation and provider switching tests
-```
-
-### Detailed File Responsibilities
-
-- **`ai/config.py`**: Reads `CHEMMIND_AI_*` environment variables (e.g. `CHEMMIND_AI_OLLAMA_BASE_URL`, `CHEMMIND_AI_DEFAULT_LLM_MODEL`) with sensible defaults for local development.
-- **`ai/schemas/llm.py`**: Defines strict data structures for single/multi-turn messages, completion options, response payloads, token metrics, and streaming deltas.
-- **`ai/schemas/citation.py`**: Standardizes citation data so frontend document viewers can jump straight to highlighted bounding boxes on specific PDF pages.
-- **`ai/schemas/document.py`**: Captures extracted document metadata and chunk representations containing text, page numbers, and detected chemical entities.
-- **`ai/providers/base_llm.py`**: Interface enforcing `generate(request)` and `stream(request)` across all vendor implementations.
-- **`ai/providers/ollama_llm.py`**: Asynchronous `httpx` implementation communicating with local Ollama instances for synchronous and streaming chat completions.
-- **`ai/providers/mock_llm.py`**: Offline provider simulating streaming and static completions without requiring a running Ollama server.
-- **`ai/generation/gateway.py`**: The primary entry point for AI operations. Consumer code calls `gateway.generate()`, `gateway.stream()`, or `gateway.embed()` without needing to know which vendor is active.
+- **Framework & Runtime**: FastAPI (Python 3.13) with Uvicorn ASGI server.
+- **Database ORM**: Async SQLAlchemy supporting SQLite for local zero-config development and PostgreSQL for production deployments.
+- **API Endpoints**:
+  - `/api/v1/workspaces`: Workspace CRUD, member access roles, quota enforcement.
+  - `/api/v1/workspaces/{id}/documents`: PDF document upload, text extraction, semantic metadata.
+  - `/api/v1/workspaces/{id}/conversations/{id}/chat`: SSE token streaming and synchronous RAG generation.
+  - `/api/v1/chemistry`: Chemical SMILES property calculation (`/properties`) and 3D spatial coordinates (`/3d`).
+  - `/api/v1/workspaces/{id}/quizzes`: Grounded multiple-choice quiz generation with evidence citations.
+  - `/api/v1/workspaces/{id}/reasoning/multi-doc`: Cross-document matrix synthesis and discrepancy detection.
+- **Security & Development Fallback**: JWT bearer token authentication with auto-provisioned local developer credentials for instant startup without friction.
 
 ---
 
-## Local Setup & Testing
+### Pillar 3: AI & Agentic RAG Subsystem (`ai/`)
 
-### 1. Environment Setup
+- **Agentic Router (`AgenticRouter`)**: Autonomously evaluates internal document sufficiency vs query intent. Routes queries to internal vector search, web search fallback, or hybrid synthesis.
+- **Hybrid Retrieval Engine (`HybridRetriever`)**: Merges dense vector embeddings (`DenseRetriever`) with sparse keyword matching (`BM25KeywordRetriever`) via Reciprocal Rank Fusion (`rrf`).
+- **Citation Resolver (`CitationResolver`)**: Extracts grounded source evidence and attaches metadata (document ID, page number, section title, web URLs) for exact traceability.
+- **Chemistry Engine (`ChemistryEngine`)**: Validates SMILES strings, calculates exact molecular weights, extracts empirical formulas, and computes 3D molecular spatial mesh coordinates via RDKit with pure-Python heuristics fallback.
+- **Grounded Quiz Engine (`QuizGenerator`)**: Analyzes document chunks to craft multiple-choice questions with plausible distractors and explanation citations.
+- **Multi-Doc Reasoning Engine (`MultiDocReasoningEngine`)**: Cross-examines multiple research papers to construct comparative analysis matrices and detect conflicting claims.
+- **Local Ollama Integration (`OllamaLLMProvider` & `LLMGateway`)**: Provider-agnostic gateway supporting local Ollama models (`llama3`, `mistral`, `gemma`) via REST (`http://localhost:11434/api/chat`).
+
+---
+
+## 🚀 Definitive Local Launch Guide (Using Local Ollama)
+
+Follow these steps to run the complete ChemMind application locally with your own Ollama model.
+
+### Step 1: Install & Start Ollama
+Ensure [Ollama](https://ollama.com) is installed on your local machine. Start the local server:
 ```bash
-python3 -m venv .venv
+ollama serve
+```
+*(Default host: `http://localhost:11434`)*
+
+### Step 2: Pull Your Local Model
+In a separate terminal, pull your preferred LLM and embedding models (e.g. `llama3` or `mistral`):
+```bash
+ollama pull llama3
+ollama pull nomic-embed-text
+```
+
+### Step 3: Start the Backend API (FastAPI)
+1. Open a terminal in the root directory:
+```bash
 source .venv/bin/activate
-pip install -r ai/requirements.txt
+cd backend
 ```
-
-### 2. Running Unit Tests
+2. Run the FastAPI development server:
 ```bash
-pytest ai/tests
+uvicorn app.main:app --reload --host 127.0.0.1 --port 8000
 ```
-All 11 foundation tests must pass cleanly before opening a Pull Request into `main`.
+3. Confirm backend health by navigating to `http://localhost:8000/docs`.
+
+### Step 4: Start the Frontend Application (Next.js)
+1. Open a new terminal in the `frontend/` folder:
+```bash
+cd frontend
+npm run dev
+```
+2. Open `http://localhost:3000` in your web browser.
+
+### Step 5: Verify the Application
+- Navigate to the **Projects** dashboard at `http://localhost:3000/projects`.
+- Click **Open Workspace** or create a new workspace.
+- In the Workspace view:
+  - **Chat Assistant**: Select **"Ollama Local (llama3)"** in the assistant panel and type a query. Watch real-time streaming tokens and citation badges!
+  - **3D Visualise**: Click the **"3D Visualise"** button in the header toolbar, enter `CH4` or `benzene`, and click **Compute 3D Structure** to render calculated 3D coordinates and molecular properties.
+  - **Generate Quiz**: Click **"Generate Quiz"** in the top bar to create an assessment grounded in your workspace documents.
+  - **Multi-Doc Synthesis**: Click **"Multi-Doc Synthesis"** to perform cross-document comparison and conflict detection.
+
+---
+
+## 🧪 Automated Testing & Verification
+
+Run the comprehensive test suite across AI and Backend packages:
+
+```bash
+# Run backend and AI unit tests (85+ tests)
+.venv/bin/python -m pytest ai/tests backend/tests
+
+# Build Next.js production bundle
+cd frontend && npm run build
+```

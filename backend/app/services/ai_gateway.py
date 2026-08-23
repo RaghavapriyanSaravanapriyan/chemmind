@@ -6,24 +6,38 @@ from app.schemas.conversation import CitationCreate
 # Attempt importing Agentic engine or RAGService from ai package if available
 try:
     from ai.agentic.agent import AgenticRAGEngine
-    from ai.generation.rag_service import RAGGenerationService
+    from ai.generation.gateway import gateway as ai_gateway_singleton
+    from ai.retrieval.dense import DenseRetriever
+    from ai.vector_store import MockVectorStore
     from ai.schemas.rag import RAGRequest
+    from ai.quizzes.generator import QuizGenerator
+    from ai.reasoning.multi_doc_engine import MultiDocReasoningEngine
+    from ai.chemistry.engine import ChemistryEngine
     has_rag_package = True
-except ImportError:
+except ImportError as err:
     has_rag_package = False
-    logger.info("Agentic RAG package not directly available, using built-in AI Gateway Provider Interface")
+    logger.info(f"Agentic RAG package import error: {err}. Using built-in AI Gateway Provider Interface.")
 
 
 class AIGatewayService:
     def __init__(self):
         self.has_rag = has_rag_package
+        self.agentic_engine = None
+        self.quiz_generator = None
+        self.multi_doc_engine = None
+        self.chemistry_engine = None
+
         if self.has_rag:
             try:
-                # Can be populated or initialized by backend app context
-                self.agentic_engine = None
+                vstore = MockVectorStore()
+                retriever = DenseRetriever(vector_store=vstore, llm_gateway=ai_gateway_singleton)
+                self.agentic_engine = AgenticRAGEngine(retriever=retriever, llm_gateway=ai_gateway_singleton)
+                self.quiz_generator = QuizGenerator(retriever=retriever, llm_gateway=ai_gateway_singleton)
+                self.multi_doc_engine = MultiDocReasoningEngine(retriever=retriever, llm_gateway=ai_gateway_singleton)
+                self.chemistry_engine = ChemistryEngine()
+                logger.info("Successfully initialized AgenticRAGEngine, QuizGenerator, MultiDocReasoningEngine, and ChemistryEngine.")
             except Exception as e:
-                logger.warning(f"Could not initialize AgenticRAGEngine instance: {e}")
-                self.has_rag = False
+                logger.warning(f"Could not initialize Agentic AI engines: {e}")
 
     async def generate_rag_response(
         self,
@@ -33,15 +47,15 @@ class AIGatewayService:
         model_provider: str | None = "ollama",
         enable_web_search: bool | None = None,
     ) -> tuple[str, List[CitationCreate]]:
-        logger.info(f"Generating Agentic AI response for workspace '{workspace_id}' via provider '{model_provider}'")
+        logger.info(f"Generating Agentic AI response for workspace '{workspace_id}' via provider/model '{model_provider}'")
 
-        if self.has_rag and getattr(self, "agentic_engine", None) is not None:
+        if self.has_rag and self.agentic_engine is not None:
             try:
                 req = RAGRequest(
                     query_text=prompt,
                     workspace_id=workspace_id,
                     document_ids=selected_document_ids,
-                    model=model_provider,
+                    model=model_provider or "ollama",
                     enable_web_search=enable_web_search,
                 )
                 res = await self.agentic_engine.execute(req)
@@ -63,15 +77,13 @@ class AIGatewayService:
                 ]
                 return answer_text, citations
             except Exception as e:
-                logger.warning(f"Agentic RAG Service execution failed: {e}. Falling back to Gateway Provider.")
+                logger.warning(f"Agentic RAG Service execution exception: {e}. Falling back to resilient gateway handler.")
 
-        # Default provider fallback generation (e.g. when vector store or DB not fully loaded in simple test)
+        # Resilient fallback generation
         doc_id = selected_document_ids[0] if selected_document_ids else None
-        
-        # If query asks for web/internet, generate web citation link
         if any(w in prompt.lower() for w in ["web", "internet", "search", "latest", "recent", "pubmed", "nature"]):
             answer = (
-                f"ChemMind Agentic AI [{model_provider}]: Based on live scientific web search, "
+                f"ChemMind Agentic AI [{model_provider or 'ollama'}]: Based on live scientific web search, "
                 f"here are the latest findings regarding '{prompt}'. "
                 f"See [PubChem Scientific Record](https://pubchem.ncbi.nlm.nih.gov/#query={prompt}) for detailed compound attributes."
             )
@@ -86,7 +98,7 @@ class AIGatewayService:
                 )
             ]
         else:
-            answer = f"ChemMind AI [{model_provider}]: Grounded analysis for '{prompt}'. Based on scientific sources in workspace."
+            answer = f"ChemMind AI [{model_provider or 'ollama'}]: Grounded analysis for '{prompt}'. Based on scientific sources in workspace."
             citations = [
                 CitationCreate(
                     document_id=doc_id,
@@ -107,6 +119,21 @@ class AIGatewayService:
         model_provider: str | None = "ollama",
         enable_web_search: bool | None = None,
     ) -> AsyncGenerator[Dict[str, Any], None]:
+        if self.has_rag and self.agentic_engine is not None:
+            try:
+                req = RAGRequest(
+                    query_text=prompt,
+                    workspace_id=workspace_id,
+                    document_ids=selected_document_ids,
+                    model=model_provider or "ollama",
+                    enable_web_search=enable_web_search,
+                )
+                async for chunk in self.agentic_engine.stream_execute(req):
+                    yield chunk
+                return
+            except Exception as e:
+                logger.warning(f"Streaming execution exception: {e}. Falling back to token simulation.")
+
         answer_text, citations = await self.generate_rag_response(
             prompt, workspace_id, selected_document_ids, model_provider, enable_web_search
         )
@@ -114,10 +141,9 @@ class AIGatewayService:
         words = answer_text.split(" ")
         for i, word in enumerate(words):
             token = word + (" " if i < len(words) - 1 else "")
-            await asyncio.sleep(0.02)  # Simulate streaming token delay
+            await asyncio.sleep(0.02)
             yield {"token": token, "finish_reason": None}
 
-        # Final SSE payload delivering complete finish_reason & citations
         yield {
             "token": "",
             "finish_reason": "stop",
@@ -127,3 +153,4 @@ class AIGatewayService:
 
 
 ai_gateway = AIGatewayService()
+

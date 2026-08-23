@@ -30,6 +30,8 @@ async def get_workspace_with_user_role(
             detail="Workspace not found",
         )
 
+
+
     # Check if user is owner directly
     if workspace.owner_id == user_id:
         return workspace, "owner"
