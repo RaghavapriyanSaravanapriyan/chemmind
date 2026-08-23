@@ -146,3 +146,60 @@ html {
     scroll-behavior: auto !important;
   }
 }
+
+/* Workspace panels - smooth resize transitions */
+.workspace-main {
+  transition: margin-left 0.35s cubic-bezier(0.16, 1, 0.3, 1),
+              margin-right 0.35s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+/* LaTeX document styles */
+.latex-doc {
+  font-family: "Computer Modern", "Latin Modern", Georgia, serif;
+  line-height: 1.8;
+}
+.latex-doc h1 { font-size: 1.75rem; font-weight: 700; margin-bottom: 0.5rem; }
+.latex-doc h2 { font-size: 1.35rem; font-weight: 600; margin-top: 2rem; margin-bottom: 0.75rem; border-bottom: 1px solid var(--border); padding-bottom: 0.4rem; }
+.latex-doc h3 { font-size: 1.1rem; font-weight: 600; margin-top: 1.5rem; margin-bottom: 0.5rem; }
+.latex-doc p { margin-bottom: 1rem; text-align: justify; }
+.latex-doc .equation-block {
+  display: flex; align-items: center; justify-content: center; gap: 1.5rem;
+  margin: 1.5rem 0; padding: 1rem 1.5rem;
+  background: var(--background); border: 1px solid var(--border);
+  border-radius: 12px; overflow-x: auto;
+}
+.latex-doc .equation-block .eq-num { font-size: 0.8rem; color: var(--muted); white-space: nowrap; }
+.latex-doc .theorem {
+  margin: 1.5rem 0; padding: 1rem 1.25rem;
+  border-left: 3px solid var(--accent);
+  background: color-mix(in srgb, var(--accent) 4%, transparent);
+  border-radius: 0 10px 10px 0;
+}
+.latex-doc .theorem-title { font-weight: 700; font-size: 0.9rem; margin-bottom: 0.4rem; }
+.latex-doc table { width: 100%; border-collapse: collapse; margin: 1.2rem 0; font-size: 0.9rem; }
+.latex-doc th, .latex-doc td { padding: 0.5rem 0.75rem; border: 1px solid var(--border); text-align: left; }
+.latex-doc th { background: var(--background); font-weight: 600; }
+
+/* 3D visualiser modal */
+.visualise-modal-backdrop {
+  position: fixed; inset: 0; z-index: 100;
+  background: rgba(0,0,0,0.5); backdrop-filter: blur(4px);
+  display: flex; align-items: center; justify-content: center;
+}
+.visualise-modal {
+  background: var(--surface); border: 1px solid var(--border);
+  border-radius: 20px; width: min(90vw, 640px); max-height: 80vh;
+  box-shadow: 0 25px 80px rgba(0,0,0,0.2); overflow: hidden;
+}
+
+/* File upload drop zone */
+.upload-zone {
+  border: 2px dashed var(--border);
+  border-radius: 12px; padding: 1.5rem;
+  text-align: center; cursor: pointer;
+  transition: border-color 0.2s, background 0.2s;
+}
+.upload-zone:hover {
+  border-color: var(--accent);
+  background: color-mix(in srgb, var(--accent) 5%, transparent);
+}

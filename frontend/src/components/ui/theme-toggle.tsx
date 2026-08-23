@@ -14,9 +14,13 @@ function applyTheme(theme: "light" | "dark") {
 }
 
 export function ThemeToggle({ className = "" }: { className?: string }) {
+  const [mounted, setMounted] = useState(false);
   const [isDark, setIsDark] = useState(false);
 
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    setMounted(true);
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     setIsDark(document.documentElement.classList.contains("dark"));
   }, []);
 
@@ -26,6 +30,12 @@ export function ThemeToggle({ className = "" }: { className?: string }) {
     localStorage.setItem(storageKey, nextTheme);
     setIsDark(!isDark);
   };
+
+  if (!mounted) {
+    return (
+      <div className={`group flex size-8 items-center justify-center rounded-full border border-border/70 bg-surface text-muted shadow-sm ${className}`} />
+    );
+  }
 
   return <button type="button" onClick={toggle} aria-label={`Switch to ${isDark ? "light" : "dark"} mode`} title={`Switch to ${isDark ? "light" : "dark"} mode`} className={`group flex size-8 items-center justify-center rounded-full border border-border/70 bg-surface text-muted shadow-sm transition-[transform,background-color,color,border-color] duration-300 hover:-translate-y-px hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/40 ${className}`}>
     <span className="relative flex size-4 items-center justify-center transition-transform duration-300 group-hover:rotate-12">{isDark ? <Sun className="absolute size-4" /> : <Moon className="absolute size-4" />}</span>

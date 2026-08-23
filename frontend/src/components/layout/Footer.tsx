@@ -29,7 +29,7 @@ export function Footer() {
               <p className="text-xs font-semibold uppercase tracking-[0.1em] text-muted">Product</p>
               <ul className="mt-4 space-y-3">
                 <li><Link href="#features" className="text-sm text-foreground/70 transition-colors hover:text-foreground">Features</Link></li>
-                <li><Link href="/workspace" className="text-sm text-foreground/70 transition-colors hover:text-foreground">Workspace</Link></li>
+                <li><Link href="/projects" className="text-sm text-foreground/70 transition-colors hover:text-foreground">Projects</Link></li>
                 <li><Link href="#how-it-works" className="text-sm text-foreground/70 transition-colors hover:text-foreground">How it works</Link></li>
               </ul>
             </div>
