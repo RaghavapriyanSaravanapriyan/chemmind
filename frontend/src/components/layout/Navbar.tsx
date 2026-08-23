@@ -38,14 +38,14 @@ export function Navbar() {
 
         <nav className="hidden items-center gap-8 md:flex">
           <Link href="#features" className="text-[13px] font-medium text-muted transition-colors duration-200 hover:text-foreground">Features</Link>
-          <Link href="/workspace" className="text-[13px] font-medium text-muted transition-colors duration-200 hover:text-foreground">Workspace</Link>
+          <Link href="/projects" className="text-[13px] font-medium text-muted transition-colors duration-200 hover:text-foreground">Projects</Link>
           <Link href="#how-it-works" className="text-[13px] font-medium text-muted transition-colors duration-200 hover:text-foreground">How it works</Link>
         </nav>
 
         <div className="flex items-center gap-3">
           <ThemeToggle />
           <Link
-            href="/workspace"
+            href="/projects"
             className="group inline-flex items-center gap-1.5 rounded-full bg-foreground px-5 py-2 text-[13px] font-semibold text-background transition-all duration-300 hover:-translate-y-px hover:shadow-lg active:translate-y-0"
           >
             Start learning
