@@ -3,46 +3,16 @@
 import React, { useMemo } from "react";
 import katex from "katex";
 import "katex/dist/katex.min.css";
+import { FileText, Upload } from "lucide-react";
 
-const RAW_LATEX_DOCUMENT = `
-\\section{1. Molecular Structure}
-
-The physical and chemical properties of a molecule are determined by its three-dimensional structure and the specific arrangement of its constituent atoms. Understanding molecular geometry is fundamental to predicting how substances interact.
-
-\\subsection{1.1 VSEPR Theory}
-
-Valence Shell Electron Pair Repulsion (VSEPR) theory provides a model for predicting molecular shapes. Electron pairs around a central atom arrange themselves to minimize repulsion, creating stable three-dimensional geometries.
-
-The electron pair geometry is defined by:
-
-$$ \\theta_{\\min} = \\arg\\min_{\\theta} \\sum_{i<j} \\frac{1}{|\\mathbf{r}_i - \\mathbf{r}_j|} $$
-
-\\textbf{Definition 1.1 (Molecular Geometry)}\\\\
-The arrangement of atoms in three-dimensional space, determined by the positions of bonding and lone pairs around the central atom.
-
-\\subsection{1.2 Chemical Bonding}
-
-Chemical bonds form when atoms share or transfer electrons. The type of bond depends on the electronegativity difference between atoms. The bond energy can be approximated as:
-
-$$ E_{\\text{bond}} = D_e \\left[1 - e^{-\\beta(r - r_e)}\\right]^2 $$
-
-where $D_e$ is the dissociation energy, $r_e$ is the equilibrium bond length, and $\\beta$ is a parameter related to the bond stiffness.
-
-\\textbf{Theorem 1.1 (Electronegativity Principle)}\\\\
-When $\\Delta\\chi > 1.7$, the bond is predominantly ionic. When $\\Delta\\chi < 0.4$, the bond is predominantly covalent.
-
-\\subsection{1.3 Orbital Hybridization}
-
-The hybridization of atomic orbitals explains molecular geometry. The wave function for an $sp^3$ hybrid orbital is expressed as:
-
-$$ \\psi_{sp^3} = \\frac{1}{2}(s + p_x + p_y + p_z) $$
-
-These structural considerations extend beyond simple molecules to complex macromolecules, influencing biological function in proteins and nucleic acids.
-`;
+interface LatexDocumentProps {
+  content?: string;
+  title?: string;
+  subtitle?: string;
+}
 
 function LatexParser({ content }: { content: string }) {
   return useMemo(() => {
-    // Basic parser to satisfy the full LaTeX document requirement
     const blocks = content.split('\n\n');
     return blocks.map((block, i) => {
       block = block.trim();
@@ -87,19 +57,44 @@ function LatexParser({ content }: { content: string }) {
   }, [content]);
 }
 
-export function LatexDocument() {
+function EmptyDocumentState() {
+  return (
+    <div className="flex flex-col items-center justify-center py-20 text-center">
+      <div className="flex size-20 items-center justify-center rounded-2xl bg-surface border border-border/60">
+        <FileText size={36} className="text-muted" />
+      </div>
+      <h2 className="mt-6 text-xl font-bold tracking-[-0.03em]">No Document Selected</h2>
+      <p className="mt-2 max-w-sm text-sm text-muted leading-6">
+        Upload a document from the sidebar to view it here, or use the AI assistant to explore chemistry topics.
+      </p>
+      <div className="mt-6 flex items-center gap-2 rounded-xl border border-dashed border-border/80 bg-background/50 px-5 py-3">
+        <Upload size={16} className="text-muted" />
+        <span className="text-xs text-muted">Upload .pdf, .tex, .csv, .md files</span>
+      </div>
+    </div>
+  );
+}
+
+export function LatexDocument({ content, title, subtitle }: LatexDocumentProps) {
+  if (!content) {
+    return (
+      <div className="latex-doc" style={{ fontFamily: "var(--font-sans)" }}>
+        <EmptyDocumentState />
+      </div>
+    );
+  }
+
   return (
     <div className="latex-doc" style={{ fontFamily: "var(--font-sans)" }}>
       <div className="flex items-center justify-between border-b border-border/50 pb-5">
         <div>
-          <p className="text-[11px] font-semibold tracking-[0.14em] text-accent uppercase">Molecular chemistry</p>
-          <p className="mt-1 text-xs text-muted">ChemMind study edition</p>
+          <p className="text-[11px] font-semibold tracking-[0.14em] text-accent uppercase">{title || "Document"}</p>
+          <p className="mt-1 text-xs text-muted">{subtitle || "ChemMind study edition"}</p>
         </div>
-        <span className="text-xs tabular-nums text-muted">01</span>
       </div>
       
       <div className="mt-2">
-        <LatexParser content={RAW_LATEX_DOCUMENT} />
+        <LatexParser content={content} />
       </div>
     </div>
   );

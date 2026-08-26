@@ -17,6 +17,7 @@ export interface ChatMessage {
   sender: "user" | "assistant";
   content: string;
   citations?: Citation[];
+  timestamp?: number;
 }
 
 export interface Workspace {
@@ -26,6 +27,7 @@ export interface Workspace {
   is_archived: boolean;
   created_at: string;
   updated_at: string;
+  color?: string;
 }
 
 export interface DocumentItem {
@@ -94,43 +96,131 @@ export interface MultiDocResponse {
   workspace_id: string;
 }
 
-// ── API CLIENT FUNCTIONS ──
+// ── LOCALSTORAGE PERSISTENCE HELPERS ──
+
+const STORAGE_KEYS = {
+  WORKSPACES: "chemmind_workspaces",
+  DOCUMENTS: (wsId: string) => `chemmind_docs_${wsId}`,
+  MESSAGES: (wsId: string) => `chemmind_msgs_${wsId}`,
+};
+
+function safeGetJSON<T>(key: string, fallback: T): T {
+  if (typeof window === "undefined") return fallback;
+  try {
+    const raw = localStorage.getItem(key);
+    return raw ? JSON.parse(raw) : fallback;
+  } catch {
+    return fallback;
+  }
+}
+
+function safeSetJSON(key: string, value: unknown) {
+  if (typeof window === "undefined") return;
+  try {
+    localStorage.setItem(key, JSON.stringify(value));
+  } catch {
+    // storage full or unavailable
+  }
+}
+
+// ── WORKSPACE CRUD (localStorage with backend fallback) ──
+
+export function getLocalWorkspaces(): Workspace[] {
+  return safeGetJSON<Workspace[]>(STORAGE_KEYS.WORKSPACES, []);
+}
+
+export function saveLocalWorkspaces(workspaces: Workspace[]) {
+  safeSetJSON(STORAGE_KEYS.WORKSPACES, workspaces);
+}
 
 export async function fetchWorkspaces(): Promise<Workspace[]> {
   try {
     const res = await fetch(`${API_BASE}/workspaces`);
-    if (!res.ok) throw new Error("Failed to fetch workspaces");
-    return await res.json();
-  } catch (err) {
-    console.warn("API server unreachable, returning empty list:", err);
-    return [];
+    if (!res.ok) throw new Error("Failed");
+    const remote = await res.json();
+    if (remote && remote.length > 0) return remote;
+  } catch {
+    // backend unreachable
   }
+  return getLocalWorkspaces();
 }
 
-export async function createWorkspace(name: string, description: string): Promise<Workspace | null> {
+export async function createWorkspace(name: string, description: string, color?: string): Promise<Workspace> {
+  const ws: Workspace = {
+    id: `ws-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+    name,
+    description,
+    is_archived: false,
+    created_at: new Date().toISOString(),
+    updated_at: new Date().toISOString(),
+    color,
+  };
+
   try {
     const res = await fetch(`${API_BASE}/workspaces`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ name, description }),
     });
-    if (!res.ok) throw new Error("Failed to create workspace");
-    return await res.json();
-  } catch (err) {
-    console.error("Failed to create workspace:", err);
-    return null;
+    if (res.ok) {
+      const remote = await res.json();
+      ws.id = remote.id;
+    }
+  } catch {
+    // use local id
   }
+
+  const all = getLocalWorkspaces();
+  all.unshift(ws);
+  saveLocalWorkspaces(all);
+  return ws;
 }
 
 export async function deleteWorkspace(id: string): Promise<boolean> {
   try {
-    const res = await fetch(`${API_BASE}/workspaces/${id}`, { method: "DELETE" });
-    return res.ok;
-  } catch (err) {
-    console.error("Failed to delete workspace:", err);
-    return false;
+    await fetch(`${API_BASE}/workspaces/${id}`, { method: "DELETE" });
+  } catch {
+    // ignore
   }
+  const all = getLocalWorkspaces().filter((w) => w.id !== id);
+  saveLocalWorkspaces(all);
+  // Clean up documents and messages
+  if (typeof window !== "undefined") {
+    localStorage.removeItem(STORAGE_KEYS.DOCUMENTS(id));
+    localStorage.removeItem(STORAGE_KEYS.MESSAGES(id));
+  }
+  return true;
 }
+
+// ── DOCUMENT PERSISTENCE ──
+
+export interface LocalDocument {
+  id: string;
+  name: string;
+  type: string;
+  date: string;
+  content: string;
+}
+
+export function getLocalDocuments(workspaceId: string): LocalDocument[] {
+  return safeGetJSON<LocalDocument[]>(STORAGE_KEYS.DOCUMENTS(workspaceId), []);
+}
+
+export function saveLocalDocuments(workspaceId: string, docs: LocalDocument[]) {
+  safeSetJSON(STORAGE_KEYS.DOCUMENTS(workspaceId), docs);
+}
+
+// ── CHAT MESSAGE PERSISTENCE ──
+
+export function getLocalMessages(workspaceId: string): ChatMessage[] {
+  return safeGetJSON<ChatMessage[]>(STORAGE_KEYS.MESSAGES(workspaceId), []);
+}
+
+export function saveLocalMessages(workspaceId: string, msgs: ChatMessage[]) {
+  safeSetJSON(STORAGE_KEYS.MESSAGES(workspaceId), msgs);
+}
+
+// ── AI CHAT (with client-side fallback) ──
 
 export async function createConversation(workspaceId: string, title = "New Conversation") {
   try {
@@ -139,11 +229,10 @@ export async function createConversation(workspaceId: string, title = "New Conve
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ title }),
     });
-    if (!res.ok) throw new Error("Failed to create conversation");
+    if (!res.ok) throw new Error("Failed");
     return await res.json();
-  } catch (err) {
-    console.error("Failed to create conversation:", err);
-    return null;
+  } catch {
+    return { id: `conv-${Date.now()}` };
   }
 }
 
@@ -151,9 +240,9 @@ export async function sendChatMessageSync(
   workspaceId: string,
   conversationId: string,
   prompt: string,
-  modelProvider = "ollama",
+  modelProvider = "llama3:latest",
   selectedDocIds?: string[]
-): Promise<ChatMessage | null> {
+): Promise<ChatMessage> {
   try {
     const res = await fetch(`${API_BASE}/workspaces/${workspaceId}/conversations/${conversationId}/chat`, {
       method: "POST",
@@ -164,19 +253,52 @@ export async function sendChatMessageSync(
         selected_document_ids: selectedDocIds,
       }),
     });
-    if (!res.ok) throw new Error("Failed to send chat message");
+    if (!res.ok) throw new Error("Failed");
     const data = await res.json();
     return {
       id: data.message_id,
       sender: "assistant",
       content: data.content,
       citations: data.citations || [],
+      timestamp: Date.now(),
     };
-  } catch (err) {
-    console.error("Chat sync error:", err);
-    return null;
+  } catch {
+    // Client-side AI fallback using local Ollama directly
+    try {
+      const ollamaRes = await fetch("http://localhost:11434/api/generate", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          model: modelProvider,
+          prompt: prompt,
+          stream: false
+        })
+      });
+      if (ollamaRes.ok) {
+        const ollamaData = await ollamaRes.json();
+        return {
+          id: `asst-${Date.now()}`,
+          sender: "assistant",
+          content: `[${modelProvider}]\n\n${ollamaData.response}`,
+          citations: [],
+          timestamp: Date.now(),
+        };
+      }
+    } catch(e) {
+      console.warn("Ollama direct fetch failed", e);
+    }
+    
+    return {
+      id: `asst-${Date.now()}`,
+      sender: "assistant",
+      content: `[Error]\n\nI could not reach the backend or local Ollama. Please ensure Ollama is running.`,
+      citations: [],
+      timestamp: Date.now(),
+    };
   }
 }
+
+// ── CHEMISTRY API ──
 
 export async function fetchChemistry3D(promptOrSmiles: string): Promise<Mol3DCoordinates | null> {
   try {
@@ -185,10 +307,9 @@ export async function fetchChemistry3D(promptOrSmiles: string): Promise<Mol3DCoo
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ smiles: promptOrSmiles }),
     });
-    if (!res.ok) throw new Error("Failed to fetch 3D coordinates");
+    if (!res.ok) throw new Error("Failed");
     return await res.json();
-  } catch (err) {
-    console.error("Chemistry 3D error:", err);
+  } catch {
     return null;
   }
 }
@@ -200,10 +321,9 @@ export async function fetchChemistryProperties(promptOrSmiles: string): Promise<
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ smiles: promptOrSmiles }),
     });
-    if (!res.ok) throw new Error("Failed to fetch properties");
+    if (!res.ok) throw new Error("Failed");
     return await res.json();
-  } catch (err) {
-    console.error("Chemistry properties error:", err);
+  } catch {
     return null;
   }
 }
@@ -215,10 +335,33 @@ export async function fetchQuiz(workspaceId: string, topic: string, numQuestions
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ topic, num_questions: numQuestions }),
     });
-    if (!res.ok) throw new Error("Failed to generate quiz");
+    if (!res.ok) throw new Error("Failed");
     return await res.json();
-  } catch (err) {
-    console.error("Quiz generation error:", err);
+  } catch {
+    try {
+      const ollamaRes = await fetch("http://localhost:11434/api/generate", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          model: "llama3:latest",
+          prompt: `Generate a multiple choice quiz about ${topic} with ${numQuestions} questions. Return ONLY a valid JSON object matching this schema:\n{"title": "Quiz Title", "questions": [{"question_id": "q1", "question_text": "...", "question_type": "multiple_choice", "options": [{"option_letter": "A", "option_text": "...", "is_correct": true}, {"option_letter": "B", "option_text": "...", "is_correct": false}, {"option_letter": "C", "option_text": "...", "is_correct": false}, {"option_letter": "D", "option_text": "...", "is_correct": false}], "correct_answer": "A", "explanation": "...", "citations": []}]}`,
+          stream: false,
+          format: "json"
+        })
+      });
+      if (ollamaRes.ok) {
+        const ollamaData = await ollamaRes.json();
+        const parsed = JSON.parse(ollamaData.response);
+        return {
+          quiz_id: `quiz-${Date.now()}`,
+          title: parsed.title || "Generated Quiz",
+          workspace_id: workspaceId,
+          questions: parsed.questions || []
+        };
+      }
+    } catch(e) {
+      console.warn(e);
+    }
     return null;
   }
 }
@@ -230,10 +373,34 @@ export async function fetchMultiDocAnalysis(workspaceId: string, queryText: stri
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ query_text: queryText, document_ids: documentIds }),
     });
-    if (!res.ok) throw new Error("Failed to analyze multi-documents");
+    if (!res.ok) throw new Error("Failed");
     return await res.json();
-  } catch (err) {
-    console.error("Multi-doc analysis error:", err);
+  } catch {
+    try {
+      const ollamaRes = await fetch("http://localhost:11434/api/generate", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          model: "llama3:latest",
+          prompt: `Perform a multi-document synthesis on the topic "${queryText}". Return ONLY a valid JSON object matching this schema:\n{"summary": "Overall summary of the analysis...", "comparison_matrix": [{"topic": "...", "document_id": "Doc 1", "excerpt": "...", "value_or_finding": "..."}], "discrepancies": [{"topic": "...", "document_id_a": "Doc 1", "claim_a": "...", "document_id_b": "Doc 2", "claim_b": "...", "nature_of_conflict": "..."}]}`,
+          stream: false,
+          format: "json"
+        })
+      });
+      if (ollamaRes.ok) {
+        const ollamaData = await ollamaRes.json();
+        const parsed = JSON.parse(ollamaData.response);
+        return {
+          workspace_id: workspaceId,
+          summary: parsed.summary || "Synthesis complete.",
+          comparison_matrix: parsed.comparison_matrix || [],
+          discrepancies: parsed.discrepancies || [],
+          citations: []
+        };
+      }
+    } catch(e) {
+      console.warn(e);
+    }
     return null;
   }
 }
