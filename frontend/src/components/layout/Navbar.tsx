@@ -37,18 +37,20 @@ export function Navbar() {
         </Link>
 
         <nav className="hidden items-center gap-8 md:flex">
-          <Link href="#features" className="text-[13px] font-medium text-muted transition-colors duration-200 hover:text-foreground">Features</Link>
-          <Link href="/projects" className="text-[13px] font-medium text-muted transition-colors duration-200 hover:text-foreground">Projects</Link>
-          <Link href="#how-it-works" className="text-[13px] font-medium text-muted transition-colors duration-200 hover:text-foreground">How it works</Link>
+          <Link href="#features" className="text-[13px] font-medium text-muted transition-colors duration-200 hover:text-foreground">Product</Link>
+          <Link href="#about" className="text-[13px] font-medium text-muted transition-colors duration-200 hover:text-foreground">About</Link>
+          <Link href="https://github.com/RaghavapriyanSaravanapriyan/chemmind" target="_blank" rel="noopener noreferrer" className="text-[13px] font-medium text-muted transition-colors duration-200 hover:text-foreground">GitHub</Link>
         </nav>
 
         <div className="flex items-center gap-3">
           <ThemeToggle />
           <Link
-            href="/projects"
+            href="https://github.com/RaghavapriyanSaravanapriyan/chemmind"
+            target="_blank"
+            rel="noopener noreferrer"
             className="group inline-flex items-center gap-1.5 rounded-full bg-foreground px-5 py-2 text-[13px] font-semibold text-background transition-all duration-300 hover:-translate-y-px hover:shadow-lg active:translate-y-0"
           >
-            Start learning
+            Get Started
             <svg className="size-3.5 transition-transform duration-300 group-hover:translate-x-0.5" fill="none" viewBox="0 0 16 16" stroke="currentColor" strokeWidth={2}>
               <path d="M3 8h10M9 4l4 4-4 4" />
             </svg>

@@ -1,7 +1,7 @@
 "use client";
 
-import { Suspense, useEffect, useState, useRef } from "react";
-import { useSearchParams } from "next/navigation";
+import { Suspense, useEffect, useState, useRef, useCallback } from "react";
+import { useSearchParams, useParams } from "next/navigation";
 import Link from "next/link";
 import { AnimatePresence, motion } from "framer-motion";
 import {
@@ -15,28 +15,24 @@ import { LatexDocument } from "@/components/workspace/LatexDocument";
 import { VisualiseModal } from "@/components/workspace/VisualiseModal";
 import {
   Citation, ChatMessage, sendChatMessageSync, createConversation,
-  fetchQuiz, fetchMultiDocAnalysis, QuizResponse, MultiDocResponse
+  fetchQuiz, fetchMultiDocAnalysis, QuizResponse, MultiDocResponse,
+  LocalDocument, getLocalDocuments, saveLocalDocuments,
+  getLocalMessages, saveLocalMessages
 } from "@/lib/api";
 
 const ease = [0.16, 1, 0.3, 1] as const;
 
-const AI_MODELS = [
-  { id: "ollama", name: "Ollama Local (llama3)", desc: "Local Ollama Engine" },
+const DEFAULT_MODELS = [
   { id: "chemmind-pro", name: "ChemMind Agentic RAG", desc: "Deep Chemistry RAG" },
-  { id: "gpt-4o", name: "GPT-4o", desc: "OpenAI Provider" },
-  { id: "claude-sonnet", name: "Claude 3.5 Sonnet", desc: "Anthropic Provider" },
 ];
 
-const SAMPLE_FILES = [
-  { id: "doc-01", name: "Molecular Chemistry & VSEPR.pdf", type: "pdf", date: "Today", content: "Molecular Chemistry" },
-  { id: "doc-02", name: "Organic Synthesis & Kinetics.tex", type: "tex", date: "Today", content: "Organic Kinetics" },
-  { id: "doc-03", name: "Bond Dissociation & Electronegativity.csv", type: "csv", date: "Aug 20", content: "Bond Data" },
-];
+type WorkspaceFile = { id: string; name: string; type: string; date: string; content: string; url?: string };
 
 function WorkspacePageContent() {
+  const params = useParams<{ id: string }>();
+  const projectId = params?.id || "default-ws";
   const searchParams = useSearchParams();
-  const projectName = searchParams.get("name") || "Molecular Chemistry Workspace";
-  const projectId = searchParams.get("project") || "mol-chem-ws";
+  const projectName = searchParams.get("name") || "Workspace";
 
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [assistantOpen, setAssistantOpen] = useState(false);
@@ -44,30 +40,58 @@ function WorkspacePageContent() {
   const [showVisualiser, setShowVisualiser] = useState(false);
   const [showQuizModal, setShowQuizModal] = useState(false);
   const [showMultiDocModal, setShowMultiDocModal] = useState(false);
-  const [selectedModel, setSelectedModel] = useState(AI_MODELS[0]);
+  const [aiModels, setAiModels] = useState(DEFAULT_MODELS);
+  const [selectedModel, setSelectedModel] = useState(DEFAULT_MODELS[0]);
   const [modelDropOpen, setModelDropOpen] = useState(false);
-  const [files, setFiles] = useState(SAMPLE_FILES);
-  const [activeDoc, setActiveDoc] = useState(SAMPLE_FILES[0]);
+  const [files, setFiles] = useState<WorkspaceFile[]>([]);
+  const [activeDoc, setActiveDoc] = useState<WorkspaceFile | null>(null);
   const [zoomLevel, setZoomLevel] = useState(100);
 
   // Chat conversation state
   const [conversationId, setConversationId] = useState<string>("default-conv");
-  const [messages, setMessages] = useState<ChatMessage[]>([
-    {
-      id: "m-0",
-      sender: "assistant",
-      content: `Welcome to ChemMind! I am grounded in '${projectName}'. Ask me anything about molecular structures, VSEPR geometries, bond energies, or request 3D visualizations and quizzes.`,
-      citations: [
-        {
-          section: "Workspace Overview",
-          excerpt: "ChemMind Agentic RAG & Chemistry Deep Engine initialized.",
-          source_type: "document",
-          document_id: "doc-01",
-        },
-      ],
-    },
-  ]);
+  const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [isGenerating, setIsGenerating] = useState(false);
+
+  // Load persisted data on mount
+  useEffect(() => {
+    // Fetch local Ollama models
+    fetch("http://localhost:11434/api/tags")
+      .then(res => res.json())
+      .then(data => {
+        if (data.models && data.models.length > 0) {
+          const localModels = data.models.map((m: any) => ({
+            id: m.name, name: m.name, desc: "Local Ollama Model"
+          }));
+          setAiModels(localModels);
+          setSelectedModel(localModels[0]);
+        }
+      })
+      .catch(() => console.warn("Ollama not running locally"));
+
+    const savedDocs = getLocalDocuments(projectId);
+    if (savedDocs.length > 0) {
+      const wf = savedDocs.map(d => ({ id: d.id, name: d.name, type: d.type, date: d.date, content: d.content, url: (d as any).url }));
+      setFiles(wf);
+      setActiveDoc(wf[0]);
+    }
+    const savedMsgs = getLocalMessages(projectId);
+    if (savedMsgs.length > 0) {
+      setMessages(savedMsgs);
+    } else {
+      setMessages([{ id: "m-0", sender: "assistant", content: `Welcome to ${projectName}! Ask me anything about chemistry — reaction mechanisms, thermodynamics, stoichiometry, or molecular properties.`, citations: [] }]);
+    }
+  }, [projectId, projectName]);
+
+  // Persist messages when they change
+  useEffect(() => {
+    if (messages.length > 0) saveLocalMessages(projectId, messages);
+  }, [messages, projectId]);
+
+  // Persist files when they change
+  const updateFiles = useCallback((newFiles: WorkspaceFile[]) => {
+    setFiles(newFiles);
+    saveLocalDocuments(projectId, newFiles.map(f => ({ id: f.id, name: f.name, type: f.type, date: f.date, content: f.content, url: f.url })));
+  }, [projectId]);
 
   // Responsive desktop panel layout
   useEffect(() => {
@@ -88,40 +112,12 @@ function WorkspacePageContent() {
     setIsGenerating(true);
 
     try {
-      // Ensure conversation exists or call sync chat endpoint
-      let activeConvId = conversationId;
-      if (!activeConvId) {
-        const conv = await createConversation(projectId, "Research Chat");
-        if (conv) {
-          activeConvId = conv.id;
-          setConversationId(conv.id);
-        }
-      }
-
-      const res = await sendChatMessageSync(projectId, activeConvId || "default-conv", promptText, selectedModel.id, [activeDoc.id]);
-      if (res) {
-        setMessages((prev) => [...prev, res]);
-      } else {
-        // Fallback response if offline
-        setMessages((prev) => [
-          ...prev,
-          {
-            id: `asst-${Date.now()}`,
-            sender: "assistant",
-            content: `ChemMind AI [${selectedModel.name}]: Grounded analysis for "${promptText}". VSEPR theory states that valence electron pairs surrounding a central atom repel each other, dictating molecular shape.`,
-            citations: [
-              {
-                section: "VSEPR Geometry & Bond Stiffness",
-                excerpt: `Evidence extracted for '${promptText}'`,
-                source_type: "document",
-                document_id: activeDoc.id,
-              },
-            ],
-          },
-        ]);
-      }
+      const docIds = activeDoc ? [activeDoc.id] : [];
+      const res = await sendChatMessageSync(projectId, conversationId, promptText, selectedModel.id, docIds);
+      setMessages((prev) => [...prev, res]);
     } catch (err) {
       console.error(err);
+      setMessages((prev) => [...prev, { id: `err-${Date.now()}`, sender: "assistant", content: "Sorry, something went wrong. Please try again.", citations: [] }]);
     } finally {
       setIsGenerating(false);
     }
@@ -141,7 +137,7 @@ function WorkspacePageContent() {
             >
               <FileSidebar
                 files={files}
-                setFiles={setFiles}
+                setFiles={updateFiles}
                 activeDoc={activeDoc}
                 setActiveDoc={setActiveDoc}
                 projectName={projectName}
@@ -163,7 +159,7 @@ function WorkspacePageContent() {
               </ToolbarIcon>
             )}
             <div className="min-w-0">
-              <p className="truncate text-sm font-semibold tracking-[-0.02em]">{activeDoc.name}</p>
+              <p className="truncate text-sm font-semibold tracking-[-0.02em]">{activeDoc?.name || projectName}</p>
               <p className="hidden text-[11px] text-muted sm:block">
                 <Link href="/projects" className="hover:text-foreground transition-colors">{projectName}</Link>
                 <span className="mx-1">·</span>Grounded Document
@@ -213,10 +209,19 @@ function WorkspacePageContent() {
           </div>
         </header>
 
-        {/* Document Viewer (LaTeX Rendered) */}
+        {/* Document Viewer (LaTeX Rendered, PDF Embed, or DOCX HTML) */}
         <div className="min-h-0 flex-1 overflow-y-auto px-3 py-6 sm:px-7 sm:py-8 lg:px-10" style={{ fontSize: `${zoomLevel}%` }}>
           <article className="mx-auto w-full max-w-[48rem] rounded-[18px] border border-border/60 bg-surface px-6 py-8 shadow-[0_10px_30px_rgba(29,29,31,0.05)] sm:rounded-[22px] sm:px-11 sm:py-10">
-            <LatexDocument />
+            {activeDoc?.type.toLowerCase() === 'pdf' && activeDoc.url ? (
+              <iframe src={activeDoc.url} className="w-full h-[600px] rounded-lg border-none" title={activeDoc.name} />
+            ) : activeDoc?.type.toLowerCase() === 'docx' || activeDoc?.type.toLowerCase() === 'doc' ? (
+              <div 
+                className="prose prose-sm dark:prose-invert max-w-none text-foreground" 
+                dangerouslySetInnerHTML={{ __html: activeDoc.content || "Document contains no readable text." }} 
+              />
+            ) : (
+              <LatexDocument content={activeDoc?.content} title={activeDoc?.name} />
+            )}
           </article>
         </div>
       </main>
@@ -234,6 +239,7 @@ function WorkspacePageContent() {
               <Assistant
                 query={query} setQuery={setQuery}
                 onClose={() => setAssistantOpen(false)}
+                aiModels={aiModels}
                 selectedModel={selectedModel}
                 setSelectedModel={setSelectedModel}
                 modelDropOpen={modelDropOpen}
@@ -241,7 +247,7 @@ function WorkspacePageContent() {
                 messages={messages}
                 isGenerating={isGenerating}
                 onSend={handleSendMessage}
-                activeDocName={activeDoc.name}
+                activeDocName={activeDoc?.name || projectName}
               />
             </motion.aside>
           </>
@@ -292,28 +298,78 @@ function ToolbarIcon({ children, label, onClick }: { children: React.ReactNode; 
 
 /* ─── FILE SIDEBAR ─── */
 function FileSidebar({ files, setFiles, activeDoc, setActiveDoc, projectName, onClose }: {
-  files: typeof SAMPLE_FILES;
-  setFiles: (f: typeof SAMPLE_FILES) => void;
-  activeDoc: typeof SAMPLE_FILES[0];
-  setActiveDoc: (d: typeof SAMPLE_FILES[0]) => void;
+  files: WorkspaceFile[];
+  setFiles: (f: WorkspaceFile[]) => void;
+  activeDoc: WorkspaceFile | null;
+  setActiveDoc: (d: WorkspaceFile) => void;
   projectName: string;
   onClose: () => void;
 }) {
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const handleUpload = () => fileInputRef.current?.click();
-  const onFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const onFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const uploaded = e.target.files;
     if (!uploaded) return;
-    const newFiles = Array.from(uploaded).map((f, idx) => ({
-      id: `uploaded-${Date.now()}-${idx}`,
-      name: f.name,
-      type: f.name.split(".").pop() || "pdf",
-      date: "Just now",
-      content: f.name,
-    }));
+    
+    // dynamically import mammoth
+    const mammoth = await import("mammoth");
+    
+    const newFiles = await Promise.all(
+      Array.from(uploaded).map((f, idx) => {
+        return new Promise<WorkspaceFile>((resolve) => {
+          const type = (f.name.split(".").pop() || "pdf").toLowerCase();
+          const reader = new FileReader();
+          
+          reader.onload = async (event) => {
+            if (type === "docx" || type === "doc") {
+              const arrayBuffer = event.target?.result as ArrayBuffer;
+              try {
+                const result = await mammoth.convertToHtml({ arrayBuffer });
+                resolve({
+                  id: `uploaded-${Date.now()}-${idx}`,
+                  name: f.name,
+                  type: type,
+                  date: "Just now",
+                  content: result.value || "Document is empty.",
+                  url: undefined,
+                });
+              } catch(err) {
+                 resolve({
+                  id: `uploaded-${Date.now()}-${idx}`,
+                  name: f.name,
+                  type: type,
+                  date: "Just now",
+                  content: "<p>Failed to parse Word document.</p>",
+                  url: undefined,
+                 });
+              }
+            } else {
+              const result = event.target?.result as string;
+              resolve({
+                id: `uploaded-${Date.now()}-${idx}`,
+                name: f.name,
+                type: type,
+                date: "Just now",
+                content: type === "pdf" ? "Preview unavailable for this format." : result,
+                url: type === "pdf" ? result : undefined,
+              });
+            }
+          };
+          
+          if (type === "docx" || type === "doc") {
+            reader.readAsArrayBuffer(f);
+          } else if (type === "pdf") {
+            reader.readAsDataURL(f);
+          } else {
+            reader.readAsText(f);
+          }
+        });
+      })
+    );
+    
     setFiles([...newFiles, ...files]);
-    setActiveDoc(newFiles[0]);
+    if (newFiles.length > 0) setActiveDoc(newFiles[0]);
     e.target.value = "";
   };
 
@@ -368,7 +424,7 @@ function FileSidebar({ files, setFiles, activeDoc, setActiveDoc, projectName, on
               onClick={() => setActiveDoc(file)}
               className={cn(
                 "flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-left transition-colors border",
-                activeDoc.id === file.id ? "bg-background border-violet-500/40 text-foreground font-semibold shadow-sm" : "border-transparent text-muted hover:bg-background hover:text-foreground"
+                activeDoc?.id === file.id ? "bg-background border-violet-500/40 text-foreground font-semibold shadow-sm" : "border-transparent text-muted hover:bg-background hover:text-foreground"
               )}
             >
               <span className={cn("flex size-8 shrink-0 items-center justify-center rounded-lg text-[10px] font-bold uppercase", typeIcon(file.type))}>
@@ -394,10 +450,11 @@ function FileSidebar({ files, setFiles, activeDoc, setActiveDoc, projectName, on
 }
 
 /* ─── ASSISTANT PANEL ─── */
-function Assistant({ query, setQuery, onClose, selectedModel, setSelectedModel, modelDropOpen, setModelDropOpen, messages, isGenerating, onSend, activeDocName }: {
+function Assistant({ query, setQuery, onClose, aiModels, selectedModel, setSelectedModel, modelDropOpen, setModelDropOpen, messages, isGenerating, onSend, activeDocName }: {
   query: string; setQuery: (v: string) => void; onClose: () => void;
-  selectedModel: typeof AI_MODELS[0];
-  setSelectedModel: (m: typeof AI_MODELS[0]) => void;
+  aiModels: { id: string, name: string, desc: string }[];
+  selectedModel: { id: string, name: string, desc: string };
+  setSelectedModel: (m: { id: string, name: string, desc: string }) => void;
   modelDropOpen: boolean;
   setModelDropOpen: (v: boolean) => void;
   messages: ChatMessage[];
@@ -405,7 +462,7 @@ function Assistant({ query, setQuery, onClose, selectedModel, setSelectedModel, 
   onSend: (txt?: string) => void;
   activeDocName: string;
 }) {
-  const suggestions = ["Explain VSEPR Theory", "Show bond dissociation math", "Lookup benzene properties"];
+  const suggestions = ["Explain reaction mechanisms", "Show thermodynamic equations", "Lookup benzene properties"];
   const dropRef = useRef<HTMLDivElement>(null);
   const chatEndRef = useRef<HTMLDivElement>(null);
 
@@ -507,7 +564,7 @@ function Assistant({ query, setQuery, onClose, selectedModel, setSelectedModel, 
                 initial={{ opacity: 0, y: 4 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: 4 }}
                 className="absolute bottom-full left-0 mb-1 w-60 rounded-xl border border-border/60 bg-surface p-1.5 shadow-xl z-50"
               >
-                {AI_MODELS.map((m) => (
+                {aiModels.map((m) => (
                   <button
                     key={m.id}
                     onClick={() => { setSelectedModel(m); setModelDropOpen(false); }}
@@ -563,44 +620,16 @@ function QuizModal({ workspaceId, onClose }: { workspaceId: string; onClose: () 
 
   const handleGenerate = async () => {
     setLoading(true);
-    const data = await fetchQuiz(workspaceId, "VSEPR Geometry & Chemical Bonding", 3);
+    const data = await fetchQuiz(workspaceId, "General Chemistry", 3);
     if (data) {
       setQuiz(data);
     } else {
-      // Local fallback quiz
+      // API unavailable
       setQuiz({
-        quiz_id: "quiz-01",
-        title: "VSEPR Geometry & Electronegativity Quiz",
+        quiz_id: "error",
+        title: "Backend Unavailable",
         workspace_id: workspaceId,
-        questions: [
-          {
-            question_id: "q1",
-            question_text: "What is the expected molecular geometry of methane (CH4) under VSEPR theory?",
-            question_type: "multiple_choice",
-            options: [
-              { option_letter: "A", option_text: "Linear", is_correct: false },
-              { option_letter: "B", option_text: "Tetrahedral", is_correct: true },
-              { option_letter: "C", option_text: "Trigonal planar", is_correct: false },
-              { option_letter: "D", option_text: "Octahedral", is_correct: false },
-            ],
-            correct_answer: "B",
-            explanation: "CH4 has 4 bonding electron pairs around carbon with 0 lone pairs, yielding 109.5° tetrahedral geometry.",
-            citations: [],
-          },
-          {
-            question_id: "q2",
-            question_text: "According to the Electronegativity Principle, a chemical bond is predominantly ionic when Δχ is:",
-            question_type: "multiple_choice",
-            options: [
-              { option_letter: "A", option_text: "> 1.7", is_correct: true },
-              { option_letter: "B", option_text: "< 0.4", is_correct: false },
-              { option_letter: "C", option_text: "= 0", is_correct: false },
-            ],
-            correct_answer: "A",
-            explanation: "When electronegativity difference Δχ exceeds 1.7, the bonding electrons are predominantly transferred, creating ionic character.",
-            citations: [],
-          },
-        ],
+        questions: [],
       });
     }
     setLoading(false);
@@ -668,11 +697,12 @@ function QuizModal({ workspaceId, onClose }: { workspaceId: string; onClose: () 
                 </div>
               ))}
 
-              {!submitted ? (
+              {quiz.questions.length > 0 && !submitted && (
                 <button onClick={() => setSubmitted(true)} className="w-full rounded-xl bg-emerald-600 py-3 text-sm font-semibold text-white hover:bg-emerald-700 transition-colors shadow-md">
                   Submit Answers & Grade
                 </button>
-              ) : (
+              )}
+              {quiz.questions.length > 0 && submitted && (
                 <button onClick={() => { setSubmitted(false); handleGenerate(); }} className="w-full rounded-xl border border-border/70 py-3 text-sm font-semibold text-foreground hover:bg-background transition-colors">
                   Generate Another Quiz
                 </button>
@@ -686,34 +716,22 @@ function QuizModal({ workspaceId, onClose }: { workspaceId: string; onClose: () 
 }
 
 /* ─── MULTI-DOC SYNTHESIS MODAL ─── */
-function MultiDocModal({ workspaceId, files, onClose }: { workspaceId: string; files: typeof SAMPLE_FILES; onClose: () => void }) {
+function MultiDocModal({ workspaceId, files, onClose }: { workspaceId: string; files: WorkspaceFile[]; onClose: () => void }) {
   const [loading, setLoading] = useState(false);
   const [result, setResult] = useState<MultiDocResponse | null>(null);
 
   const handleSynthesize = async () => {
     setLoading(true);
-    const docIds = files.map((f) => f.id);
-    const data = await fetchMultiDocAnalysis(workspaceId, "Compare molecular orbital vs VSEPR predictions", docIds);
+    const docIds = files.map((f: WorkspaceFile) => f.id);
+    const data = await fetchMultiDocAnalysis(workspaceId, "Compare document claims", docIds);
     if (data) {
       setResult(data);
     } else {
       setResult({
         workspace_id: workspaceId,
-        summary: "Cross-document synthesis complete. Comparison reveals strong alignment on VSEPR tetrahedral geometries with slight deviations in bond dissociation energies between PDF and Tex datasets.",
-        comparison_matrix: [
-          { topic: "Molecular Geometry", document_id: "doc-01", excerpt: "CH4 exhibits tetrahedral symmetry", value_or_finding: "109.5° Bond Angle" },
-          { topic: "Bond Energy Equation", document_id: "doc-02", excerpt: "Morse potential E_bond", value_or_finding: "D_e dissociation parameter" },
-        ],
-        discrepancies: [
-          {
-            topic: "Equilibrium Bond Stiffness",
-            document_id_a: "doc-01",
-            claim_a: "β parameter estimated at 1.85 Å⁻¹",
-            document_id_b: "doc-03",
-            claim_b: "Empirical fit suggests β = 1.92 Å⁻¹",
-            nature_of_conflict: "Minor variation due to experimental temperature variance",
-          },
-        ],
+        summary: "Backend unavailable. Please start the backend API to perform multi-document reasoning.",
+        comparison_matrix: [],
+        discrepancies: [],
         citations: [],
       });
     }

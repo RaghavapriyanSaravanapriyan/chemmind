@@ -51,8 +51,8 @@ export default function LandingPage() {
             </motion.p>
 
             <motion.div initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.7, ease, delay: 0.55 }} className="mt-10 flex flex-col items-center justify-center gap-3 sm:flex-row">
-              <Link href="/projects" className="group inline-flex items-center gap-2 rounded-full bg-foreground px-7 py-3.5 text-sm font-semibold text-background shadow-[0_8px_30px_rgba(0,0,0,0.12)] transition-all duration-300 hover:-translate-y-0.5 hover:shadow-[0_12px_40px_rgba(0,0,0,0.18)] active:translate-y-0">
-                Open workspace
+              <Link href="https://github.com/RaghavapriyanSaravanapriyan/chemmind" target="_blank" rel="noopener noreferrer" className="group inline-flex items-center gap-2 rounded-full bg-foreground px-7 py-3.5 text-sm font-semibold text-background shadow-[0_8px_30px_rgba(0,0,0,0.12)] transition-all duration-300 hover:-translate-y-0.5 hover:shadow-[0_12px_40px_rgba(0,0,0,0.18)] active:translate-y-0">
+                Get Started
                 <ArrowUpRight className="size-4 transition-transform duration-300 group-hover:-translate-y-0.5 group-hover:translate-x-0.5" />
               </Link>
               <Link href="#features" className="inline-flex items-center gap-2 rounded-full border border-border/70 bg-surface/80 px-7 py-3.5 text-sm font-medium text-foreground shadow-sm transition-all duration-300 hover:-translate-y-0.5 hover:border-border hover:shadow-md">
@@ -74,7 +74,7 @@ export default function LandingPage() {
           <div className="animate-marquee flex whitespace-nowrap">
             {Array.from({ length: 2 }).map((_, i) => (
               <div key={i} className="flex shrink-0 items-center gap-12 px-6">
-                {["Document reader", "AI assistant", "Knowledge graphs", "Molecular structures", "Research papers", "Study notes", "VSEPR theory", "Chemical bonds"].map((t) => (
+                {["Document reader", "AI assistant", "Knowledge graphs", "Molecular structures", "Research papers", "Study notes", "Thermodynamics", "Chemical bonds"].map((t) => (
                   <span key={`${i}-${t}`} className="text-sm font-medium text-muted/50">{t}</span>
                 ))}
               </div>
@@ -170,8 +170,8 @@ export default function LandingPage() {
                 <p className="mt-7 text-lg leading-7 text-muted sm:text-xl sm:leading-8">
                   Step into a more focused relationship with your knowledge.
                 </p>
-                <Link href="/projects" className="group mt-10 inline-flex items-center gap-2 rounded-full bg-foreground px-8 py-4 text-base font-semibold text-background shadow-[0_8px_30px_rgba(0,0,0,0.12)] transition-all duration-300 hover:-translate-y-0.5 hover:shadow-[0_16px_50px_rgba(0,0,0,0.18)] active:translate-y-0">
-                  Launch ChemMind
+                <Link href="https://github.com/RaghavapriyanSaravanapriyan/chemmind" target="_blank" rel="noopener noreferrer" className="group mt-10 inline-flex items-center gap-2 rounded-full bg-foreground px-8 py-4 text-base font-semibold text-background shadow-[0_8px_30px_rgba(0,0,0,0.12)] transition-all duration-300 hover:-translate-y-0.5 hover:shadow-[0_16px_50px_rgba(0,0,0,0.18)] active:translate-y-0">
+                  Get Started
                   <ArrowUpRight className="size-4 transition-transform duration-300 group-hover:-translate-y-0.5 group-hover:translate-x-0.5" />
                 </Link>
               </div>
@@ -204,13 +204,13 @@ function WorkspacePreview() {
             <p className="text-[9px] font-semibold uppercase tracking-[0.12em] text-muted/60">Molecular chemistry</p>
             <h3 className="mt-3 text-lg font-bold tracking-[-0.03em] sm:text-xl">1. Molecular Structure</h3>
             <div className="mt-5 space-y-2"><Skel w="100%"/><Skel w="93%"/><Skel w="76%"/></div>
-            <h4 className="mt-6 text-sm font-semibold">VSEPR Theory</h4>
+            <h4 className="mt-6 text-sm font-semibold">Molecular Geometry</h4>
             <div className="mt-3 space-y-2"><Skel w="100%"/><Skel w="100%"/><Skel w="84%"/></div>
           </div>
         </article>
         <aside className="hidden w-[28%] min-w-[200px] border-l border-border/40 bg-surface/80 lg:flex lg:flex-col">
           <div className="border-b border-border/40 px-4 py-3"><div className="flex items-center gap-2 text-xs font-semibold"><span className="flex size-5 items-center justify-center rounded-full bg-foreground text-[9px] text-background">✦</span>ChemMind</div><p className="mt-1 text-[9px] text-muted">Grounded in this document</p></div>
-          <div className="flex-1 space-y-3 p-4"><div className="ml-auto max-w-[85%] rounded-2xl rounded-tr-md bg-foreground/5 px-3 py-2 text-[10px] leading-4">Explain VSEPR theory simply.</div><div className="max-w-[90%] rounded-2xl rounded-tl-md border border-border/30 px-3 py-2 text-[10px] leading-4">Electron pairs naturally spread out around an atom, because like charges repel.</div></div>
+          <div className="flex-1 space-y-3 p-4"><div className="ml-auto max-w-[85%] rounded-2xl rounded-tr-md bg-foreground/5 px-3 py-2 text-[10px] leading-4">Explain stoichiometry simply.</div><div className="max-w-[90%] rounded-2xl rounded-tl-md border border-border/30 px-3 py-2 text-[10px] leading-4">It is the math behind chemistry—balancing reactants and products.</div></div>
           <div className="m-3 rounded-xl border border-border/50 px-3 py-2 text-[10px] text-muted">Ask about this page…</div>
         </aside>
       </div>
