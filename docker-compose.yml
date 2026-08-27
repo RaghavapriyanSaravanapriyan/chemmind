@@ -1,0 +1,96 @@
+version: '3.8'
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: chemmind_postgres
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres_password
+      POSTGRES_DB: chemmind_db
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  redis:
+    image: redis:7-alpine
+    container_name: chemmind_redis
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+
+  ollama:
+    image: ollama/ollama:latest
+    container_name: chemmind_ollama
+    ports:
+      - "11434:11434"
+    volumes:
+      - ollama_data:/root/.ollama
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: all
+              capabilities: [gpu]
+    healthcheck:
+      test: ["CMD", "ollama", "list"]
+      interval: 10s
+      timeout: 10s
+      retries: 5
+
+  backend:
+    build:
+      context: ./backend_rust
+      dockerfile: Dockerfile
+    container_name: chemmind_backend
+    environment:
+      - CHEMMIND_DATABASE_URL=postgresql://postgres:postgres_password@postgres:5432/chemmind_db
+      - CHEMMIND_OLLAMA_BASE_URL=http://ollama:11434
+      - CHEMMIND_SECRET_KEY=chemmind_super_secret_key_change_in_production_32bytes_minimum_length
+      - CHEMMIND_ENVIRONMENT=development
+      - CHEMMIND_LOG_LEVEL=DEBUG
+      - RUST_LOG=info,chemmind_backend=debug
+    ports:
+      - "8000:8000"
+    volumes:
+      - ./backend_rust/uploads:/app/uploads
+      - ./backend_rust/.env:/app/.env:ro
+    depends_on:
+      postgres:
+        condition: service_healthy
+      ollama:
+        condition: service_healthy
+    restart: unless-stopped
+
+  qdrant:
+    image: qdrant/qdrant:latest
+    container_name: chemmind_qdrant
+    ports:
+      - "6333:6333"
+      - "6334:6334"
+    volumes:
+      - qdrant_data:/qdrant/storage
+    healthcheck:
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:6333/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+volumes:
+  postgres_data:
+  redis_data:
+  ollama_data:
+  qdrant_data:
