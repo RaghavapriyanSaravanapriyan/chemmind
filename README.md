@@ -125,12 +125,37 @@ npm run dev
 
 ## 🧪 Automated Testing & Verification
 
-Run the comprehensive test suite across AI and Backend packages:
+Run the complete verification suite from the repository root. This runs the AI and
+FastAPI tests, Rust tests, frontend linting, and the frontend production build:
 
 ```bash
-# Run backend and AI unit tests (85+ tests)
-.venv/bin/python -m pytest ai/tests backend/tests
+# Python AI and FastAPI tests
+python -m pytest ai/tests backend/tests
 
-# Build Next.js production bundle
-cd frontend && npm run build
+# Rust backend tests, including integration tests
+cargo test --manifest-path backend_rust/Cargo.toml
+
+# Frontend checks
+npm --prefix frontend run lint
+npm --prefix frontend run build
+```
+
+On Windows PowerShell, run the same checks with:
+
+```powershell
+python -m pytest ai/tests backend/tests; cargo test --manifest-path backend_rust/Cargo.toml; npm --prefix frontend run lint; npm --prefix frontend run build
+```
+
+Run an individual package when diagnosing a failure:
+
+```bash
+# AI and FastAPI tests
+python -m pytest ai/tests backend/tests
+
+# Rust backend tests
+cargo test --manifest-path backend_rust/Cargo.toml
+
+# Frontend lint and production build
+npm --prefix frontend run lint
+npm --prefix frontend run build
 ```
