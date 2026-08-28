@@ -15,7 +15,7 @@ from ai.vector_store.mock_store import MockVectorStore
 def create_mock_gateway():
     return LLMGateway(
         llm_provider=MockLLMProvider(),
-        embedding_provider=MockEmbeddingProvider(dimension=128),
+        embedding_provider=MockEmbeddingProvider(vector_dim=384),
     )
 
 
@@ -24,7 +24,7 @@ async def create_populated_vector_store():
     points = [
         VectorPoint(
             id="chunk_1",
-            vector=[0.1] * 128,
+            vector=[0.1] * 384,
             payload={
                 "text": "High efficiency palladium catalyzed Suzuki cross-coupling reaction in water.",
                 "workspace_id": "ws_001",
@@ -39,7 +39,7 @@ async def create_populated_vector_store():
         ),
         VectorPoint(
             id="chunk_2",
-            vector=[0.05] * 128,
+            vector=[0.05] * 384,
             payload={
                 "text": "Enantioselective hydrogenation using chiral ruthenium BINAP complexes.",
                 "workspace_id": "ws_001",
@@ -54,7 +54,7 @@ async def create_populated_vector_store():
         ),
         VectorPoint(
             id="chunk_3",
-            vector=[0.1] * 128,
+            vector=[0.1] * 384,
             payload={
                 "text": "Foreign workspace document that must not be leaked.",
                 "workspace_id": "ws_foreign",
