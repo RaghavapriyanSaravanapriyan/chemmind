@@ -1,7 +1,8 @@
 import os
 import sys
 from pathlib import Path
-from typing import AsyncGenerator, Tuple
+from typing import AsyncGenerator
+from unittest.mock import AsyncMock, patch
 import pytest
 import pytest_asyncio
 from httpx import ASGITransport, AsyncClient
@@ -22,6 +23,33 @@ from app.main import app
 from app.models.base import Base
 from app.models.user import User
 from app.models.workspace import Workspace, WorkspaceMember
+from app.services.storage import storage_service
+from app.services.ai_gateway import ai_gateway
+
+# Switch AI Gateway singleton to mock provider during test suite run
+try:
+    from ai.generation.gateway import gateway as ai_gateway_singleton
+    from ai.providers.mock_llm import MockLLMProvider
+    from ai.providers.ollama_embedding import MockEmbeddingProvider
+    from ai.vector_store.mock_store import MockVectorStore
+    from ai.retrieval.dense import DenseRetriever
+    from ai.agentic.agent import AgenticRAGEngine
+    from ai.quizzes.generator import QuizGenerator
+    from ai.reasoning.multi_doc_engine import MultiDocReasoningEngine
+    from ai.chemistry.engine import ChemistryEngine
+
+    ai_gateway_singleton.set_active_llm_provider("mock")
+    ai_gateway_singleton.set_active_embedding_provider("mock")
+
+    if ai_gateway.has_rag:
+        vstore = MockVectorStore()
+        retriever = DenseRetriever(vector_store=vstore, llm_gateway=ai_gateway_singleton)
+        ai_gateway.agentic_engine = AgenticRAGEngine(retriever=retriever, llm_gateway=ai_gateway_singleton)
+        ai_gateway.quiz_generator = QuizGenerator(retriever=retriever, llm_gateway=ai_gateway_singleton)
+        ai_gateway.multi_doc_engine = MultiDocReasoningEngine(retriever=retriever, llm_gateway=ai_gateway_singleton)
+        ai_gateway.chemistry_engine = ChemistryEngine()
+except Exception:
+    pass
 
 TEST_DATABASE_URL = "sqlite+aiosqlite:///:memory:"
 
@@ -63,11 +91,13 @@ async def async_client(db_session: AsyncSession) -> AsyncGenerator[AsyncClient, 
 
     app.dependency_overrides[get_db] = override_get_db
 
-    async with AsyncClient(
-        transport=ASGITransport(app=app),
-        base_url="http://testserver",
-    ) as client:
-        yield client
+    # Patch check_db_health to return True for in-memory SQLite health checks
+    with patch("app.api.v1.endpoints.health.check_db_health", return_value=True):
+        async with AsyncClient(
+            transport=ASGITransport(app=app),
+            base_url="http://testserver",
+        ) as client:
+            yield client
 
     app.dependency_overrides.clear()
 
@@ -144,6 +174,9 @@ def temp_storage_dir(tmp_path) -> str:
     storage_path = tmp_path / "uploads"
     storage_path.mkdir(parents=True, exist_ok=True)
     original_storage = settings.STORAGE_DIR
+    original_service_dir = storage_service.base_dir
     settings.STORAGE_DIR = str(storage_path)
+    storage_service.base_dir = str(storage_path)
     yield str(storage_path)
     settings.STORAGE_DIR = original_storage
+    storage_service.base_dir = original_service_dir

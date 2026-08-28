@@ -8,66 +8,76 @@ from ai.retrieval.rrf import reciprocal_rank_fusion
 from ai.retrieval.sparse import BM25KeywordRetriever
 from ai.schemas.document import DocumentChunk
 from ai.schemas.retrieval import RetrievalQuery, RetrievedChunk
+from ai.schemas.vector import VectorPoint
 from ai.vector_store.mock_store import MockVectorStore
-from ai.vector_store.base import VectorItem
 
 
-@pytest.fixture
-def mock_gateway():
+def create_mock_gateway():
     return LLMGateway(
         llm_provider=MockLLMProvider(),
         embedding_provider=MockEmbeddingProvider(dimension=128),
     )
 
 
-@pytest.fixture
-def populated_vector_store():
+async def create_populated_vector_store():
     store = MockVectorStore()
-    items = [
-        VectorItem(
-            chunk_id="chunk_1",
-            document_id="doc_001",
-            workspace_id="ws_001",
+    points = [
+        VectorPoint(
+            id="chunk_1",
             vector=[0.1] * 128,
-            text="High efficiency palladium catalyzed Suzuki cross-coupling reaction in water.",
-            page_number=1,
-            section_title="Catalysis",
-            chemical_entities=["Pd", "H2O"],
-            chunk_type="text",
-            payload={"page_start": 1, "page_end": 1},
+            payload={
+                "text": "High efficiency palladium catalyzed Suzuki cross-coupling reaction in water.",
+                "workspace_id": "ws_001",
+                "document_id": "doc_001",
+                "page_number": 1,
+                "section_title": "Catalysis",
+                "chemical_entities": ["Pd", "H2O"],
+                "chunk_type": "text",
+                "page_start": 1,
+                "page_end": 1,
+            },
         ),
-        VectorItem(
-            chunk_id="chunk_2",
-            document_id="doc_001",
-            workspace_id="ws_001",
+        VectorPoint(
+            id="chunk_2",
             vector=[0.05] * 128,
-            text="Enantioselective hydrogenation using chiral ruthenium BINAP complexes.",
-            page_number=3,
-            section_title="Hydrogenation",
-            chemical_entities=["Ru", "BINAP"],
-            chunk_type="text",
-            payload={"page_start": 3, "page_end": 3},
+            payload={
+                "text": "Enantioselective hydrogenation using chiral ruthenium BINAP complexes.",
+                "workspace_id": "ws_001",
+                "document_id": "doc_001",
+                "page_number": 3,
+                "section_title": "Hydrogenation",
+                "chemical_entities": ["Ru", "BINAP"],
+                "chunk_type": "text",
+                "page_start": 3,
+                "page_end": 3,
+            },
         ),
-        VectorItem(
-            chunk_id="chunk_3",
-            document_id="doc_foreign",
-            workspace_id="ws_foreign",
+        VectorPoint(
+            id="chunk_3",
             vector=[0.1] * 128,
-            text="Foreign workspace document that must not be leaked.",
-            page_number=1,
-            section_title="Secret",
-            chemical_entities=[],
-            chunk_type="text",
-            payload={"page_start": 1, "page_end": 1},
+            payload={
+                "text": "Foreign workspace document that must not be leaked.",
+                "workspace_id": "ws_foreign",
+                "document_id": "doc_foreign",
+                "page_number": 1,
+                "section_title": "Secret",
+                "chemical_entities": [],
+                "chunk_type": "text",
+                "page_start": 1,
+                "page_end": 1,
+            },
         ),
     ]
-    store.upsert("chemmind_chunks", items)
+    await store.upsert_points("chemmind_chunks", points)
     return store
 
 
 @pytest.mark.asyncio
-async def test_dense_retrieval_workspace_isolation(populated_vector_store, mock_gateway):
-    retriever = DenseRetriever(vector_store=populated_vector_store, llm_gateway=mock_gateway)
+async def test_dense_retrieval_workspace_isolation():
+    gateway = create_mock_gateway()
+    vstore = await create_populated_vector_store()
+    retriever = DenseRetriever(vector_store=vstore, llm_gateway=gateway)
+
     query = RetrievalQuery(
         query_text="palladium catalysis",
         workspace_id="ws_001",
@@ -83,8 +93,11 @@ async def test_dense_retrieval_workspace_isolation(populated_vector_store, mock_
 
 
 @pytest.mark.asyncio
-async def test_dense_retrieval_chemical_filter(populated_vector_store, mock_gateway):
-    retriever = DenseRetriever(vector_store=populated_vector_store, llm_gateway=mock_gateway)
+async def test_dense_retrieval_chemical_filter():
+    gateway = create_mock_gateway()
+    vstore = await create_populated_vector_store()
+    retriever = DenseRetriever(vector_store=vstore, llm_gateway=gateway)
+
     query = RetrievalQuery(
         query_text="catalytic reaction",
         workspace_id="ws_001",
@@ -137,8 +150,10 @@ def test_reciprocal_rank_fusion_logic():
 
 
 @pytest.mark.asyncio
-async def test_hybrid_retriever_end_to_end(populated_vector_store, mock_gateway):
-    dense_retriever = DenseRetriever(vector_store=populated_vector_store, llm_gateway=mock_gateway)
+async def test_hybrid_retriever_end_to_end():
+    gateway = create_mock_gateway()
+    vstore = await create_populated_vector_store()
+    dense_retriever = DenseRetriever(vector_store=vstore, llm_gateway=gateway)
     hybrid_retriever = HybridRetriever(dense_retriever=dense_retriever)
 
     query = RetrievalQuery(

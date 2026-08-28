@@ -7,8 +7,8 @@ from ai.providers.ollama_embedding import MockEmbeddingProvider
 from ai.retrieval.dense import DenseRetriever
 from ai.schemas.rag import RAGRequest
 from ai.schemas.retrieval import RetrievedChunk
+from ai.schemas.vector import VectorPoint
 from ai.vector_store.mock_store import MockVectorStore
-from ai.vector_store.base import VectorItem
 
 
 @pytest.fixture
@@ -16,24 +16,29 @@ def agentic_router():
     return AgenticRouter(sufficiency_threshold=0.30)
 
 
-@pytest.fixture
-def mock_agentic_engine():
+async def create_mock_agentic_engine():
     gateway = LLMGateway(
         llm_provider=MockLLMProvider(),
         embedding_provider=MockEmbeddingProvider(dimension=128),
     )
     vstore = MockVectorStore()
-    vstore.upsert(
+    await vstore.upsert_points(
         "chemmind_chunks",
         [
-            VectorItem(
-                chunk_id="c1",
-                document_id="doc1",
-                workspace_id="ws1",
+            VectorPoint(
+                id="c1",
                 vector=[0.1] * 128,
-                text="The experimental NMR data for compound 4a shows a singlet at 3.8 ppm [1].",
-                page_number=2,
-                section_title="NMR Results",
+                payload={
+                    "text": "The experimental NMR data for compound 4a shows a singlet at 3.8 ppm [1].",
+                    "workspace_id": "ws1",
+                    "document_id": "doc1",
+                    "page_number": 2,
+                    "section_title": "NMR Results",
+                    "chemical_entities": ["4a"],
+                    "chunk_type": "text",
+                    "page_start": 2,
+                    "page_end": 2,
+                },
             )
         ],
     )
@@ -114,27 +119,29 @@ def test_llm_gateway_provider_management():
 
 
 @pytest.mark.asyncio
-async def test_agentic_rag_engine_execution(mock_agentic_engine: AgenticRAGEngine):
+async def test_agentic_rag_engine_execution():
+    engine = await create_mock_agentic_engine()
     req = RAGRequest(
         query_text="What does NMR show for compound 4a?",
         workspace_id="ws1",
         model="mock",
     )
-    resp = await mock_agentic_engine.execute(req)
+    resp = await engine.execute(req)
     assert len(resp.answer) > 0
     assert resp.workspace_id == "ws1"
     assert isinstance(resp.citations, list)
 
 
 @pytest.mark.asyncio
-async def test_agentic_rag_engine_streaming(mock_agentic_engine: AgenticRAGEngine):
+async def test_agentic_rag_engine_streaming():
+    engine = await create_mock_agentic_engine()
     req = RAGRequest(
         query_text="Describe NMR peaks",
         workspace_id="ws1",
         model="mock",
     )
     chunks_received = []
-    async for chunk in mock_agentic_engine.stream_execute(req):
+    async for chunk in engine.stream_execute(req):
         chunks_received.append(chunk)
 
     assert len(chunks_received) > 0

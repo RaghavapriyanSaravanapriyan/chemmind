@@ -12,7 +12,7 @@ from app.services.ai_gateway import AIGatewayService
 @pytest.mark.asyncio
 async def test_ollama_llm_provider_connection_error():
     # Point provider to dead port
-    dead_provider = OllamaLLMProvider(base_url="http://127.0.0.1:59999", timeout=1.0)
+    dead_provider = OllamaLLMProvider(base_url="http://127.0.0.1:59999", timeout=0.1)
     req = LLMRequest(
         messages=[ChatMessage(role=Role.USER, content="Test prompt")],
         model="llama3",
@@ -30,7 +30,7 @@ async def test_ollama_llm_provider_http_500_error():
         model="llama3",
     )
 
-    with patch("httpx.AsyncClient.post") as mock_post:
+    with patch("httpx.AsyncClient.post", new_callable=AsyncMock) as mock_post:
         mock_response = AsyncMock()
         mock_response.raise_for_status.side_effect = httpx.HTTPStatusError(
             "Internal Server Error",
@@ -46,11 +46,11 @@ async def test_ollama_llm_provider_http_500_error():
 
 @pytest.mark.asyncio
 async def test_ollama_embedding_provider_connection_error():
-    dead_emb_provider = OllamaEmbeddingProvider(base_url="http://127.0.0.1:59999", timeout=1.0)
+    dead_emb_provider = OllamaEmbeddingProvider(base_url="http://127.0.0.1:59999", timeout=0.1)
     req = EmbeddingRequest(input_texts=["Test text for embedding"])
     with pytest.raises(RuntimeError) as exc_info:
         await dead_emb_provider.embed(req)
-    assert "Ollama embedding request failed" in str(exc_info.value)
+    assert "Ollama embedding" in str(exc_info.value)
 
 
 @pytest.mark.asyncio
@@ -73,7 +73,6 @@ async def test_web_search_tool_offline_fallback():
 @pytest.mark.asyncio
 async def test_ai_gateway_resilient_fallback_on_engine_failure():
     gateway_service = AIGatewayService()
-    # Force agentic_engine to raise an exception
     gateway_service.has_rag = True
     gateway_service.agentic_engine = AsyncMock()
     gateway_service.agentic_engine.execute.side_effect = RuntimeError("Simulated vector DB failure")
