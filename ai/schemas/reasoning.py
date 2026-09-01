@@ -3,7 +3,7 @@ from pydantic import BaseModel, Field
 from ai.schemas.citation import Citation
 
 class MultiDocAnalysisRequest(BaseModel):
-    document_ids: List[str] = Field(..., min_items=1, description="List of target document IDs to cross-examine")
+    document_ids: List[str] = Field(..., min_length=1, description="List of target document IDs to cross-examine")
     query_text: str = Field(..., description="Synthesis or comparative question text")
     workspace_id: str = Field(..., description="Target workspace ID")
     collection_name: str = Field(default="chem_papers", description="Vector store collection name")
