@@ -5,18 +5,17 @@ import { useSearchParams, useParams } from "next/navigation";
 import Link from "next/link";
 import { AnimatePresence, motion } from "framer-motion";
 import {
-  BookOpen, ChevronDown, ChevronLeft, ChevronRight, Eye, FileText,
-  HelpCircle, Layers, Loader2, Menu, MoreHorizontal, PanelLeftClose, PanelRightClose,
-  Plus, Search, Send, Sparkles, Upload, X, ZoomIn, ZoomOut, Globe, CheckCircle2, AlertCircle
+  ChevronDown, Eye, HelpCircle, Layers, Loader2, Menu, PanelLeftClose, PanelRightClose,
+  Search, Send, Sparkles, Upload, X, ZoomIn, ZoomOut, Globe, CheckCircle2, AlertCircle
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { ThemeToggle } from "@/components/ui/theme-toggle";
 import { LatexDocument } from "@/components/workspace/LatexDocument";
 import { VisualiseModal } from "@/components/workspace/VisualiseModal";
 import {
-  Citation, ChatMessage, sendChatMessageSync, createConversation, streamChatMessage,
+  ChatMessage, sendChatMessageSync, createConversation, streamChatMessage, uploadDocument,
   fetchQuiz, fetchMultiDocAnalysis, QuizResponse, MultiDocResponse,
-  LocalDocument, getLocalDocuments, saveLocalDocuments,
+  getLocalDocuments, saveLocalDocuments,
   getLocalMessages, saveLocalMessages
 } from "@/lib/api";
 
@@ -43,13 +42,25 @@ function WorkspacePageContent() {
   const [aiModels, setAiModels] = useState(DEFAULT_MODELS);
   const [selectedModel, setSelectedModel] = useState(DEFAULT_MODELS[0]);
   const [modelDropOpen, setModelDropOpen] = useState(false);
-  const [files, setFiles] = useState<WorkspaceFile[]>([]);
-  const [activeDoc, setActiveDoc] = useState<WorkspaceFile | null>(null);
+
+  // Lazily hydrate persisted documents/messages from localStorage on first
+  // render (avoids synchronous setState inside the mount effect).
+  const [files, setFiles] = useState<WorkspaceFile[]>(() =>
+    getLocalDocuments(projectId).map((d) => ({ id: d.id, name: d.name, type: d.type, date: d.date, content: d.content, url: d.url }))
+  );
+  const [activeDoc, setActiveDoc] = useState<WorkspaceFile | null>(() => {
+    const saved = getLocalDocuments(projectId);
+    return saved.length > 0 ? { id: saved[0].id, name: saved[0].name, type: saved[0].type, date: saved[0].date, content: saved[0].content, url: saved[0].url } : null;
+  });
   const [zoomLevel, setZoomLevel] = useState(100);
 
   // Chat conversation state
   const [conversationId, setConversationId] = useState<string>("default-conv");
-  const [messages, setMessages] = useState<ChatMessage[]>([]);
+  const [messages, setMessages] = useState<ChatMessage[]>(() =>
+    getLocalMessages(projectId).length > 0
+      ? getLocalMessages(projectId)
+      : [{ id: "m-0", sender: "assistant", content: `Welcome to ${projectName}! Ask me anything about chemistry — reaction mechanisms, thermodynamics, stoichiometry, or molecular properties.`, citations: [] }]
+  );
   const [isGenerating, setIsGenerating] = useState(false);
   const [streamingPlaceholder, setStreamingPlaceholder] = useState<string>("");
 
@@ -58,9 +69,9 @@ function WorkspacePageContent() {
     // Fetch local Ollama models
     fetch("http://localhost:11434/api/tags")
       .then(res => res.json())
-      .then(data => {
+      .then((data: { models?: Array<{ name: string }> }) => {
         if (data.models && data.models.length > 0) {
-          const localModels = data.models.map((m: any) => ({
+          const localModels = data.models.map((m) => ({
             id: m.name, name: m.name, desc: "Local Ollama Model"
           }));
           setAiModels(localModels);
@@ -73,20 +84,7 @@ function WorkspacePageContent() {
     createConversation(projectId).then((conv) => {
       if (conv && conv.id) setConversationId(conv.id);
     });
-
-    const savedDocs = getLocalDocuments(projectId);
-    if (savedDocs.length > 0) {
-      const wf = savedDocs.map(d => ({ id: d.id, name: d.name, type: d.type, date: d.date, content: d.content, url: (d as any).url }));
-      setFiles(wf);
-      setActiveDoc(wf[0]);
-    }
-    const savedMsgs = getLocalMessages(projectId);
-    if (savedMsgs.length > 0) {
-      setMessages(savedMsgs);
-    } else {
-      setMessages([{ id: "m-0", sender: "assistant", content: `Welcome to ${projectName}! Ask me anything about chemistry — reaction mechanisms, thermodynamics, stoichiometry, or molecular properties.`, citations: [] }]);
-    }
-  }, [projectId, projectName]);
+  }, [projectId]);
 
   // Persist messages when they change
   useEffect(() => {
@@ -178,6 +176,7 @@ function WorkspacePageContent() {
                 activeDoc={activeDoc}
                 setActiveDoc={setActiveDoc}
                 projectName={projectName}
+                workspaceId={projectId}
                 onClose={() => setSidebarOpen(false)}
               />
             </motion.aside>
@@ -335,20 +334,34 @@ function ToolbarIcon({ children, label, onClick }: { children: React.ReactNode; 
 }
 
 /* ─── FILE SIDEBAR ─── */
-function FileSidebar({ files, setFiles, activeDoc, setActiveDoc, projectName, onClose }: {
+function FileSidebar({ files, setFiles, activeDoc, setActiveDoc, projectName, workspaceId, onClose }: {
   files: WorkspaceFile[];
   setFiles: (f: WorkspaceFile[]) => void;
   activeDoc: WorkspaceFile | null;
   setActiveDoc: (d: WorkspaceFile) => void;
   projectName: string;
+  workspaceId: string;
   onClose: () => void;
 }) {
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const [searchQuery, setSearchQuery] = useState("");
+
+  const filteredFiles = searchQuery.trim()
+    ? files.filter((f) => f.name.toLowerCase().includes(searchQuery.trim().toLowerCase()))
+    : files;
 
   const handleUpload = () => fileInputRef.current?.click();
   const onFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const uploaded = e.target.files;
     if (!uploaded) return;
+    
+    // Fire-and-forget backend sync: mirror each file to the Rust backend when
+    // reachable. Local rendering still works even if the backend is down.
+    Array.from(uploaded).forEach((f) => {
+      uploadDocument(workspaceId, f).catch(() => {
+        // Backend unreachable — local persistence is the fallback.
+      });
+    });
     
     // dynamically import mammoth
     const mammoth = await import("mammoth");
@@ -372,7 +385,7 @@ function FileSidebar({ files, setFiles, activeDoc, setActiveDoc, projectName, on
                   content: result.value || "Document is empty.",
                   url: undefined,
                 });
-              } catch(err) {
+              } catch {
                  resolve({
                   id: `uploaded-${Date.now()}-${idx}`,
                   name: f.name,
@@ -449,14 +462,24 @@ function FileSidebar({ files, setFiles, activeDoc, setActiveDoc, projectName, on
       <div className="mt-4 px-4">
         <div className="flex items-center gap-2 rounded-xl border border-border/60 bg-background px-3 py-2">
           <Search size={14} className="text-muted" />
-          <input type="text" placeholder="Search files..." className="flex-1 bg-transparent text-sm outline-none placeholder:text-muted/60" />
+          <input
+            type="text"
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            placeholder="Search files..."
+            className="flex-1 bg-transparent text-sm outline-none placeholder:text-muted/60"
+          />
         </div>
       </div>
 
       <div className="mt-4 flex-1 overflow-y-auto px-3">
         <p className="px-3 text-[10px] font-semibold tracking-[0.14em] text-muted uppercase">Workspace Documents</p>
         <div className="mt-2 space-y-1">
-          {files.map((file) => (
+          {filteredFiles.length === 0 ? (
+            <p className="px-3 py-4 text-xs text-muted/70">
+              {files.length === 0 ? "No documents yet. Upload a paper or dataset to begin." : "No files match your search."}
+            </p>
+          ) : filteredFiles.map((file) => (
             <button
               key={file.id}
               onClick={() => setActiveDoc(file)}
@@ -664,7 +687,7 @@ function QuizModal({ workspaceId, onClose }: { workspaceId: string; onClose: () 
   const [selectedAnswers, setSelectedAnswers] = useState<Record<string, string>>({});
   const [submitted, setSubmitted] = useState(false);
 
-  const handleGenerate = async () => {
+  const handleGenerate = useCallback(async () => {
     setLoading(true);
     const data = await fetchQuiz(workspaceId, "General Chemistry", 3);
     if (data) {
@@ -679,9 +702,12 @@ function QuizModal({ workspaceId, onClose }: { workspaceId: string; onClose: () 
       });
     }
     setLoading(false);
-  };
+  }, [workspaceId]);
 
-  useEffect(() => { handleGenerate(); }, []);
+  useEffect(() => {
+    const t = setTimeout(() => { handleGenerate(); }, 0);
+    return () => clearTimeout(t);
+  }, [handleGenerate]);
 
   return (
     <motion.div className="visualise-modal-backdrop" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} onClick={onClose}>
@@ -766,7 +792,7 @@ function MultiDocModal({ workspaceId, files, onClose }: { workspaceId: string; f
   const [loading, setLoading] = useState(false);
   const [result, setResult] = useState<MultiDocResponse | null>(null);
 
-  const handleSynthesize = async () => {
+  const handleSynthesize = useCallback(async () => {
     setLoading(true);
     const docIds = files.map((f: WorkspaceFile) => f.id);
     const data = await fetchMultiDocAnalysis(workspaceId, "Compare document claims", docIds);
@@ -782,9 +808,12 @@ function MultiDocModal({ workspaceId, files, onClose }: { workspaceId: string; f
       });
     }
     setLoading(false);
-  };
+  }, [files, workspaceId]);
 
-  useEffect(() => { handleSynthesize(); }, []);
+  useEffect(() => {
+    const t = setTimeout(() => { handleSynthesize(); }, 0);
+    return () => clearTimeout(t);
+  }, [handleSynthesize]);
 
   return (
     <motion.div className="visualise-modal-backdrop" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} onClick={onClose}>

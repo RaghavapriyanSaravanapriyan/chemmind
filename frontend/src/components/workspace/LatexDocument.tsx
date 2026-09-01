@@ -47,7 +47,7 @@ function LatexParser({ content }: { content: string }) {
       html = html.replace(/\$([^\$]+)\$/g, (match, math) => {
         try {
           return katex.renderToString(math, { displayMode: false, throwOnError: false });
-        } catch (e) {
+        } catch {
           return match;
         }
       });

@@ -10,7 +10,7 @@ import {
 import { cn } from "@/lib/utils";
 import { ThemeToggle } from "@/components/ui/theme-toggle";
 import { 
-  fetchWorkspaces, createWorkspace, deleteWorkspace, Workspace, 
+  fetchWorkspaces, createWorkspace, deleteWorkspace, renameWorkspace, Workspace, 
   getLocalWorkspaces, saveLocalWorkspaces, getLocalDocuments
 } from "@/lib/api";
 
@@ -115,8 +115,11 @@ export default function ProjectsPage() {
     setMenuOpenId(null);
   };
 
-  const handleRenameSubmit = () => {
+  const handleRenameSubmit = async () => {
     if (!renameValue.trim() || !renameId) return;
+    
+    // Sync with the Rust backend when reachable (best-effort).
+    await renameWorkspace(renameId, renameValue.trim());
     
     // Update local state and localStorage
     const allWorkspaces = getLocalWorkspaces();

@@ -50,6 +50,24 @@ export function VisualiseModal({ onClose }: { onClose: () => void }) {
     }
   };
 
+  const handleExport = () => {
+    if (!mol3d || mol3d.coordinates_3d.length === 0) return;
+    const xyz = mol3d.atoms.map((atom, i) => {
+      const [x, y, z] = mol3d.coordinates_3d[i] ?? [0, 0, 0];
+      return `${atom}\t${x.toFixed(4)}\t${y.toFixed(4)}\t${z.toFixed(4)}`;
+    });
+    const xyzText = `${mol3d.atoms.length}\n${mol3d.smiles}\n${xyz.join("\n")}\n`;
+    const blob = new Blob([xyzText], { type: "chemical/x-xyz" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `${(mol3d.smiles || "molecule").replace(/[^a-zA-Z0-9]/g, "_")}.xyz`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+  };
+
   return (
     <motion.div className="visualise-modal-backdrop" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} onClick={onClose}>
       <motion.div className="visualise-modal max-w-lg" initial={{ scale: 0.92, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} exit={{ scale: 0.92, opacity: 0 }} transition={{ duration: 0.3 }} onClick={(e) => e.stopPropagation()}>
@@ -135,8 +153,8 @@ export function VisualiseModal({ onClose }: { onClose: () => void }) {
                           "top-1/2 left-0 -translate-y-1/2",
                           "top-1/2 right-0 -translate-y-1/2",
                         ];
-                        const atomColor = atom === "H" ? "from-emerald-400 to-teal-600 shadow-emerald-500/30" : "from-violet-400 to-purple-600 shadow-purple-500/30";
-                        return (
+const atomColor = atom === "H" ? "from-emerald-400 to-teal-600 shadow-emerald-500/30" : "from-violet-400 to-purple-600 shadow-purple-500/30";
+                          return (
                           <div key={idx} className={`absolute ${positions[idx % positions.length]} size-7 rounded-full bg-gradient-to-br ${atomColor} shadow-md flex items-center justify-center text-white text-[10px] font-bold`}>
                             {atom}
                           </div>
@@ -162,7 +180,11 @@ export function VisualiseModal({ onClose }: { onClose: () => void }) {
               <button onClick={() => { setGenerated(false); }} className="flex-1 flex items-center justify-center gap-2 rounded-xl border border-border/70 px-4 py-2.5 text-xs font-medium text-muted hover:text-foreground hover:border-border transition-colors">
                 <RotateCcw size={14} /> Reset
               </button>
-              <button className="flex-1 flex items-center justify-center gap-2 rounded-xl bg-surface border border-border/70 px-4 py-2.5 text-xs font-medium text-foreground hover:bg-background transition-colors">
+              <button
+                onClick={handleExport}
+                disabled={!mol3d || mol3d.coordinates_3d.length === 0}
+                className="flex-1 flex items-center justify-center gap-2 rounded-xl bg-surface border border-border/70 px-4 py-2.5 text-xs font-medium text-foreground hover:bg-background transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+              >
                 <Download size={14} /> Export Coordinates
               </button>
             </div>

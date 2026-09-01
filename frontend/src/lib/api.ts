@@ -272,6 +272,21 @@ export async function deleteWorkspace(id: string): Promise<boolean> {
   return true;
 }
 
+export async function renameWorkspace(id: string, name: string): Promise<Workspace | null> {
+  try {
+    await ensureAuthToken();
+    const res = await fetchJson(`${API_BASE}/workspaces/${id}`, {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ name }),
+    });
+    if (!res.ok) throw new Error("Rename failed");
+    return await res.json();
+  } catch {
+    return null;
+  }
+}
+
 // ── DOCUMENT PERSISTENCE ──
 
 export interface LocalDocument {
@@ -280,6 +295,7 @@ export interface LocalDocument {
   type: string;
   date: string;
   content: string;
+  url?: string;
 }
 
 export function getLocalDocuments(workspaceId: string): LocalDocument[] {
@@ -314,6 +330,31 @@ export async function createConversation(workspaceId: string, title = "New Conve
     return await res.json();
   } catch {
     return { id: `conv-${Date.now()}` };
+  }
+}
+
+/**
+ * Uploads a raw file to the Rust backend's document store for a workspace.
+ * Returns the backend document record, or null if the backend is unreachable
+ * (callers should fall back to client-side localStorage persistence).
+ */
+export async function uploadDocument(workspaceId: string, file: File): Promise<DocumentItem | null> {
+  try {
+    await ensureAuthToken();
+    const token = getStoredToken();
+    const form = new FormData();
+    form.append("file", file, file.name);
+    const headers: Record<string, string> = {};
+    if (token) headers["Authorization"] = `Bearer ${token}`;
+    const res = await fetch(`${API_BASE}/workspaces/${workspaceId}/documents`, {
+      method: "POST",
+      headers,
+      body: form,
+    });
+    if (!res.ok) throw new Error("Upload failed");
+    return await res.json();
+  } catch {
+    return null;
   }
 }
 
