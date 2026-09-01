@@ -2,7 +2,7 @@
 
 <img width="1252" height="285" alt="ChemMind banner" src="https://github.com/user-attachments/assets/9d7618f5-bd4e-4773-bf2d-2465d0e9fd2b" />
 
-**Open Course — Chemistry Research Assignment**
+**Open Source — Chemistry Research Assistant**
 
 An AI-powered chemistry research workspace for literature discovery, research-paper analysis, citation tracking, 3D molecular modelling, and chemistry-focused information retrieval — combining retrieval-augmented generation with deterministic chemistry tools.
 
@@ -192,7 +192,7 @@ Navigate to `http://localhost:3000/projects`, open or create a workspace, and:
 
 | Variable | Default | Description |
 |----------|---------|-------------|
-| `CHEMMIND_AI_AI_PROVIDER` | `ollama` | Active LLM provider |
+| `CHEMMIND_AI_PROVIDER` | `ollama` | Active LLM provider |
 | `CHEMMIND_AI_EMBEDDING_PROVIDER` | `ollama` | Active embedding provider |
 | `CHEMMIND_AI_QDRANT_HOST` | `localhost` | Qdrant vector store host |
 | `CHEMMIND_AI_QDRANT_PORT` | `6333` | Qdrant vector store port |
