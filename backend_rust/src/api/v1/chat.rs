@@ -55,7 +55,7 @@ async fn chat_query(
     State(ai_gateway): State<AIGateway>,
     auth_user: AuthUser,
     Path((workspace_id, conversation_id)): Path<(Uuid, Uuid)>,
-    Json(payload): Json<AIChatRequest>,
+    mut payload: Json<AIChatRequest>,
 ) -> AppResult<Json<AIChatResponse>> {
     let (conversation_id, role) = get_conversation_with_permission(&pool, workspace_id, conversation_id, auth_user.id()).await?;
     
@@ -65,6 +65,10 @@ async fn chat_query(
 
     // Check AI request quota
     UsageService::check_quota_available(&pool, workspace_id, "ai_requests", 1, &settings).await?;
+
+    // Ground the answer in real extracted document text when documents were
+    // selected, so citations reference actual sources.
+    payload.grounded_context = build_grounded_context(&pool, &payload).await;
 
     // 1. Save user query message
     let _user_msg = sqlx::query_as!(
@@ -81,7 +85,7 @@ async fn chat_query(
     .await?;
 
     // 2. Call AI Gateway
-    let (answer_text, citations_in) = ai_gateway.generate_rag_response(payload).await?;
+    let (answer_text, citations_in) = ai_gateway.generate_rag_response(payload.0).await?;
 
     // 3. Save assistant message
     let asst_msg = sqlx::query_as!(
@@ -153,11 +157,13 @@ async fn chat_stream(
         .map(|s| s.split(',').filter_map(|id| Uuid::parse_str(id).ok()).collect());
     let model_provider = params.get("model_provider").cloned();
 
-    let request = AIChatRequest {
+    let mut request = AIChatRequest {
         prompt,
         selected_document_ids,
         model_provider,
+        grounded_context: None,
     };
+    request.grounded_context = build_grounded_context(&pool, &request).await;
 
     let error_event = |msg: String| {
         let event = Event::default()
@@ -267,4 +273,17 @@ async fn chat_stream(
 
     let boxed: Pin<Box<dyn Stream<Item = Result<Event, Infallible>> + Send>> = Box::pin(persisting_stream);
     Sse::new(boxed).keep_alive(KeepAlive::new().interval(Duration::from_secs(15)))
+}
+
+/// Loads extracted text for the selected documents and builds a grounded
+/// context block with real excerpts, so answers and citations reference
+/// actual sources rather than fabricated ones.
+async fn build_grounded_context(
+    pool: &PgPool,
+    request: &AIChatRequest,
+) -> Option<String> {
+    let Some(doc_ids) = &request.selected_document_ids else {
+        return None;
+    };
+    crate::services::document_text::build_grounded_context(pool, doc_ids).await
 }

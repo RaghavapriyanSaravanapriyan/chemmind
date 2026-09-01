@@ -12,6 +12,10 @@ pub struct AIChatRequest {
     pub prompt: String,
     pub selected_document_ids: Option<Vec<Uuid>>,
     pub model_provider: Option<String>,
+    /// Server-populated grounded context: extracted document excerpts injected
+    /// into the prompt so answers reference real sources. Not client-supplied.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub grounded_context: Option<String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -99,16 +103,26 @@ impl OllamaProvider {
     }
 
     fn build_prompt(&self, request: &AIChatRequest) -> String {
-        let doc_context = if let Some(doc_ids) = &request.selected_document_ids {
-            format!("\n\nContext documents: {}", doc_ids.iter().map(|id| id.to_string()).collect::<Vec<_>>().join(", "))
-        } else {
-            String::new()
-        };
+        let context = request
+            .grounded_context
+            .clone()
+            .unwrap_or_default();
 
-        format!(
-            "You are ChemMind, an AI assistant for chemistry research. Answer the user's question based on the provided context.{}\n\nQuestion: {}",
-            doc_context, request.prompt
-        )
+        if !context.is_empty() {
+            format!(
+                "You are ChemMind, an AI assistant for chemistry research. Answer the user's \
+                 question using ONLY the grounded context below. If the context does not \
+                 contain the answer, say so clearly. Cite the relevant source document and \
+                 quote excerpts when answering.\n\nGROUNDED CONTEXT:\n{}\n\nQuestion: {}",
+                context, request.prompt
+            )
+        } else {
+            format!(
+                "You are ChemMind, an AI assistant for chemistry research. Answer the user's \
+                 question based on your chemistry knowledge.\n\nQuestion: {}",
+                request.prompt
+            )
+        }
     }
 
     /// Sends a prompt to Ollama and parses the response as JSON.
@@ -458,16 +472,24 @@ impl AIGateway {
         num_questions: i32,
         _selected_document_ids: Option<Vec<Uuid>>,
         model_provider: Option<String>,
+        grounded_context: Option<String>,
     ) -> AppResult<serde_json::Value> {
+        let context_block = grounded_context
+            .as_deref()
+            .map(|c| format!("\n\nGROUNDED CONTEXT (use only this material to author questions):\n{}", c))
+            .unwrap_or_default();
+
         let prompt = format!(
-            "Generate a chemistry multiple-choice quiz about '{}' with {} questions. \
+            "Generate a chemistry multiple-choice quiz about '{}' with {} questions.\
+             Base every question and explanation strictly on the grounded context provided below.\
              Return ONLY a valid JSON object with this schema: \
              {{\"title\": string, \"questions\": [{{\"question_id\": string, \"question_text\": string, \
              \"question_type\": \"multiple_choice\", \"options\": [{{\"option_letter\": string, \
              \"option_text\": string, \"is_correct\": boolean}}], \"correct_answer\": string, \
-             \"explanation\": string, \"citations\": []}}]}}",
+             \"explanation\": string, \"citations\": []}}]}}{}",
             topic,
-            num_questions.max(1)
+            num_questions.max(1),
+            context_block
         );
 
         match self
@@ -505,15 +527,23 @@ impl AIGateway {
         query_text: String,
         selected_document_ids: Vec<Uuid>,
         model_provider: Option<String>,
+        grounded_context: Option<String>,
     ) -> AppResult<serde_json::Value> {
         let docs: Vec<String> = selected_document_ids.iter().map(|id| id.to_string()).collect();
+        let context_block = grounded_context
+            .as_deref()
+            .map(|c| format!("\n\nGROUNDED CONTEXT (use ONLY this material for evidence and excerpts):\n{}", c))
+            .unwrap_or_default();
+
         let prompt = format!(
-            "Perform a multi-document synthesis on the question '{query_text}' across documents {docs:?}. \
+            "Perform a multi-document synthesis on the question '{query_text}' across documents {docs:?}.\
+             Use ONLY the grounded context below for excerpts, findings and claims.\
              Return ONLY a valid JSON object with this schema: \
              {{\"summary\": string, \"comparison_matrix\": [{{\"topic\": string, \"document_id\": string, \
              \"excerpt\": string, \"value_or_finding\": string}}], \
              \"discrepancies\": [{{\"topic\": string, \"document_id_a\": string, \"claim_a\": string, \
-             \"document_id_b\": string, \"claim_b\": string, \"nature_of_conflict\": string}}]}}"
+             \"document_id_b\": string, \"claim_b\": string, \"nature_of_conflict\": string}}]}}{}",
+            context_block
         );
 
         match self

@@ -69,8 +69,21 @@ async fn generate_quiz(
     let topic = payload.topic.unwrap_or_else(|| "General Chemistry".to_string());
     let num_questions = payload.num_questions.unwrap_or(3);
 
+    let grounded_context = match &payload.selected_document_ids {
+        Some(ids) if !ids.is_empty() => {
+            crate::services::document_text::build_grounded_context(&pool, ids).await
+        }
+        _ => None,
+    };
+
     let value = ai_gateway
-        .generate_quiz(topic.clone(), num_questions, payload.selected_document_ids, payload.model_provider)
+        .generate_quiz(
+            topic.clone(),
+            num_questions,
+            payload.selected_document_ids,
+            payload.model_provider,
+            grounded_context,
+        )
         .await?;
 
     let questions: Vec<QuizQuestion> = value

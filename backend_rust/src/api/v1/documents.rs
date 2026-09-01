@@ -98,20 +98,31 @@ async fn upload_document(
     // Clean up temp file
     let _ = tokio::fs::remove_file(&temp_path).await;
 
+    // Extract searchable text from the uploaded bytes. Text-based formats
+    // (txt/md/csv/tex/json) are decoded directly; other formats store an empty
+    // string so grounding simply has no context for them.
+    let extracted_text = crate::services::document_text::extract_text(
+        &filename,
+        &file_bytes,
+    );
+
+    let mime_type = crate::services::document_text::mime_for(&filename);
+
     // Create Document record
     let document = sqlx::query_as!(
         Document,
         r#"
-        INSERT INTO documents (workspace_id, uploaded_by_id, filename, file_size, mime_type, storage_path, status)
-        VALUES ($1, $2, $3, $4, $5, $6, 'UPLOADED')
-        RETURNING id, workspace_id, uploaded_by_id, filename, file_size, mime_type, storage_path, status, created_at, updated_at
+        INSERT INTO documents (workspace_id, uploaded_by_id, filename, file_size, mime_type, storage_path, status, extracted_text)
+        VALUES ($1, $2, $3, $4, $5, $6, 'UPLOADED', $7)
+        RETURNING id, workspace_id, uploaded_by_id, filename, file_size, mime_type, storage_path, status, created_at, updated_at, extracted_text
         "#,
         workspace_id,
         auth_user.id(),
         filename,
         file_size_saved as i64,
-        "application/pdf",
-        storage_path
+        mime_type,
+        storage_path,
+        extracted_text
     )
     .fetch_one(&pool)
     .await?;
@@ -150,7 +161,7 @@ async fn list_documents(
 
     let documents = sqlx::query_as!(
         Document,
-        r#"SELECT id, workspace_id, uploaded_by_id, filename, file_size, mime_type, storage_path, status, created_at, updated_at FROM documents WHERE workspace_id = $1 ORDER BY created_at DESC"#,
+        r#"SELECT id, workspace_id, uploaded_by_id, filename, file_size, mime_type, storage_path, status, created_at, updated_at, extracted_text FROM documents WHERE workspace_id = $1 ORDER BY created_at DESC"#,
         workspace_id
     )
     .fetch_all(&pool)
@@ -183,7 +194,7 @@ async fn get_document(
 
     let document = sqlx::query_as!(
         Document,
-        r#"SELECT id, workspace_id, uploaded_by_id, filename, file_size, mime_type, storage_path, status, created_at, updated_at FROM documents WHERE id = $1 AND workspace_id = $2"#,
+        r#"SELECT id, workspace_id, uploaded_by_id, filename, file_size, mime_type, storage_path, status, created_at, updated_at, extracted_text FROM documents WHERE id = $1 AND workspace_id = $2"#,
         document_id,
         workspace_id
     )
@@ -218,7 +229,7 @@ async fn delete_document(
 
     let document = sqlx::query_as!(
         Document,
-        r#"SELECT id, workspace_id, uploaded_by_id, filename, file_size, mime_type, storage_path, status, created_at, updated_at FROM documents WHERE id = $1 AND workspace_id = $2"#,
+        r#"SELECT id, workspace_id, uploaded_by_id, filename, file_size, mime_type, storage_path, status, created_at, updated_at, extracted_text FROM documents WHERE id = $1 AND workspace_id = $2"#,
         document_id,
         workspace_id
     )

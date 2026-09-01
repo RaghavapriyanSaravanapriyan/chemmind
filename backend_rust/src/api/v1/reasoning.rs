@@ -69,8 +69,14 @@ async fn multi_doc_reasoning(
     let query_text = payload.query_text.unwrap_or_else(|| "Compare document claims".to_string());
     let document_ids = payload.document_ids.unwrap_or_default();
 
+    let grounded_context = if !document_ids.is_empty() {
+        crate::services::document_text::build_grounded_context(&pool, &document_ids).await
+    } else {
+        None
+    };
+
     let value = ai_gateway
-        .generate_multi_doc(query_text, document_ids, payload.model_provider)
+        .generate_multi_doc(query_text, document_ids, payload.model_provider, grounded_context)
         .await?;
 
     let comparison_matrix: Vec<ComparisonRow> = value
