@@ -14,7 +14,7 @@ import { ThemeToggle } from "@/components/ui/theme-toggle";
 import { LatexDocument } from "@/components/workspace/LatexDocument";
 import { VisualiseModal } from "@/components/workspace/VisualiseModal";
 import {
-  Citation, ChatMessage, sendChatMessageSync, createConversation,
+  Citation, ChatMessage, sendChatMessageSync, createConversation, streamChatMessage,
   fetchQuiz, fetchMultiDocAnalysis, QuizResponse, MultiDocResponse,
   LocalDocument, getLocalDocuments, saveLocalDocuments,
   getLocalMessages, saveLocalMessages
@@ -51,6 +51,7 @@ function WorkspacePageContent() {
   const [conversationId, setConversationId] = useState<string>("default-conv");
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [isGenerating, setIsGenerating] = useState(false);
+  const [streamingPlaceholder, setStreamingPlaceholder] = useState<string>("");
 
   // Load persisted data on mount
   useEffect(() => {
@@ -67,6 +68,11 @@ function WorkspacePageContent() {
         }
       })
       .catch(() => console.warn("Ollama not running locally"));
+
+    // Ensure a real conversation exists against the Rust backend when possible
+    createConversation(projectId).then((conv) => {
+      if (conv && conv.id) setConversationId(conv.id);
+    });
 
     const savedDocs = getLocalDocuments(projectId);
     if (savedDocs.length > 0) {
@@ -110,16 +116,47 @@ function WorkspacePageContent() {
     setMessages((prev) => [...prev, userMsg]);
     setQuery("");
     setIsGenerating(true);
+    setStreamingPlaceholder("");
 
     try {
       const docIds = activeDoc ? [activeDoc.id] : [];
-      const res = await sendChatMessageSync(projectId, conversationId, promptText, selectedModel.id, docIds);
-      setMessages((prev) => [...prev, res]);
+      let accumulated = "";
+
+      // Try real-time streaming against the Rust backend first.
+      const streamed = await streamChatMessage(
+        projectId,
+        conversationId,
+        promptText,
+        selectedModel.id,
+        docIds,
+        (token) => {
+          accumulated += token;
+          setStreamingPlaceholder(accumulated);
+        }
+      );
+
+      if (streamed && accumulated.length > 0) {
+        setStreamingPlaceholder("");
+        setMessages((prev) => [...prev, {
+          id: `asst-${Date.now()}`,
+          sender: "assistant",
+          content: accumulated,
+          citations: [],
+          timestamp: Date.now(),
+        }]);
+      } else {
+        // Fall back to the synchronous chat endpoint (also hits the backend).
+        setStreamingPlaceholder("");
+        const res = await sendChatMessageSync(projectId, conversationId, promptText, selectedModel.id, docIds);
+        setMessages((prev) => [...prev, res]);
+      }
     } catch (err) {
       console.error(err);
+      setStreamingPlaceholder("");
       setMessages((prev) => [...prev, { id: `err-${Date.now()}`, sender: "assistant", content: "Sorry, something went wrong. Please try again.", citations: [] }]);
     } finally {
       setIsGenerating(false);
+      setStreamingPlaceholder("");
     }
   };
 
@@ -246,6 +283,7 @@ function WorkspacePageContent() {
                 setModelDropOpen={setModelDropOpen}
                 messages={messages}
                 isGenerating={isGenerating}
+                streamingText={streamingPlaceholder}
                 onSend={handleSendMessage}
                 activeDocName={activeDoc?.name || projectName}
               />
@@ -450,7 +488,7 @@ function FileSidebar({ files, setFiles, activeDoc, setActiveDoc, projectName, on
 }
 
 /* ─── ASSISTANT PANEL ─── */
-function Assistant({ query, setQuery, onClose, aiModels, selectedModel, setSelectedModel, modelDropOpen, setModelDropOpen, messages, isGenerating, onSend, activeDocName }: {
+function Assistant({ query, setQuery, onClose, aiModels, selectedModel, setSelectedModel, modelDropOpen, setModelDropOpen, messages, isGenerating, streamingText, onSend, activeDocName }: {
   query: string; setQuery: (v: string) => void; onClose: () => void;
   aiModels: { id: string, name: string, desc: string }[];
   selectedModel: { id: string, name: string, desc: string };
@@ -459,6 +497,7 @@ function Assistant({ query, setQuery, onClose, aiModels, selectedModel, setSelec
   setModelDropOpen: (v: boolean) => void;
   messages: ChatMessage[];
   isGenerating: boolean;
+  streamingText: string;
   onSend: (txt?: string) => void;
   activeDocName: string;
 }) {
@@ -529,9 +568,16 @@ function Assistant({ query, setQuery, onClose, aiModels, selectedModel, setSelec
           </div>
         ))}
         {isGenerating && (
-          <div className="flex items-center gap-2 text-xs text-muted">
-            <Loader2 size={14} className="animate-spin text-violet-500" />
-            <span>ChemMind reasoning & querying RAG gateway...</span>
+          <div className="flex flex-col items-start gap-2 text-xs text-muted">
+            <div className="flex items-center gap-2">
+              <Loader2 size={14} className="animate-spin text-violet-500" />
+              <span>ChemMind reasoning & querying RAG gateway...</span>
+            </div>
+            {streamingText && (
+              <div className="max-w-[90%] whitespace-pre-wrap rounded-2xl rounded-tl-md border border-accent/20 bg-surface px-4 py-3 text-sm leading-6 text-foreground shadow-sm">
+                {streamingText}
+              </div>
+            )}
           </div>
         )}
         <div ref={chatEndRef} />

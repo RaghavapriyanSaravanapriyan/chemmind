@@ -1,6 +1,6 @@
 # ChemMind — Production Agentic RAG & Chemistry Deep Engine
 
-ChemMind is an agentic research platform designed for molecular chemistry, literature review, and interactive paper synthesis. It seamlessly connects a **Next.js 16 Frontend**, a **FastAPI Microservices Backend**, and an **Agentic AI & RAG Subsystem** capable of running on local Ollama models.
+ChemMind is an agentic research platform designed for molecular chemistry, literature review, and interactive paper synthesis. It seamlessly connects a **Next.js 16 Frontend**, a **Rust (Axum) Backend**, and an **Agentic AI & RAG Subsystem** capable of running on local Ollama models.
 
 ---
 
@@ -18,10 +18,11 @@ ChemMind is built upon three distinct architectural pillars:
                                     │ REST / SSE API Protocols
                                     ▼
 ┌────────────────────────────────────────────────────────────────────────┐
-│                        BACKEND (FastAPI API)                           │
-│   • Async SQLAlchemy (SQLite/Postgres)  • SSE Streaming Endpoint       │
-│   • Pydantic v2 Data Contracts           • Usage Limits & Auto-auth     │
-│   • Document Ingestion & Storage        • Multi-Doc / Quiz API Routers  │
+│                      BACKEND (Rust / Axum API)                         │
+│   • Axum + SQLx (PostgreSQL)           • SSE Streaming Endpoint        │
+│   • JWT auth + bcrypt password hashing • Usage Limits & Quotas         │
+│   • Document Ingestion & Storage       • Chemistry, Quiz & Multi-Doc   │
+│   • Provider-Independent AI Gateway    • Multi-Doc Reasoning Routers   │
 └───────────────────────────────────┬────────────────────────────────────┘
                                     │ AI Gateway Bridge
                                     ▼
@@ -47,10 +48,10 @@ ChemMind is built upon three distinct architectural pillars:
 
 ---
 
-### Pillar 2: Backend Microservices API (`backend/`)
+### Pillar 2: Backend API (`backend_rust/`)
 
-- **Framework & Runtime**: FastAPI (Python 3.13) with Uvicorn ASGI server.
-- **Database ORM**: Async SQLAlchemy supporting SQLite for local zero-config development and PostgreSQL for production deployments.
+- **Framework & Runtime**: Axum (Rust) with Tokio.
+- **Database ORM**: SQLx with PostgreSQL (async connection pooling).
 - **API Endpoints**:
   - `/api/v1/workspaces`: Workspace CRUD, member access roles, quota enforcement.
   - `/api/v1/workspaces/{id}/documents`: PDF document upload, text extraction, semantic metadata.
@@ -58,7 +59,7 @@ ChemMind is built upon three distinct architectural pillars:
   - `/api/v1/chemistry`: Chemical SMILES property calculation (`/properties`) and 3D spatial coordinates (`/3d`).
   - `/api/v1/workspaces/{id}/quizzes`: Grounded multiple-choice quiz generation with evidence citations.
   - `/api/v1/workspaces/{id}/reasoning/multi-doc`: Cross-document matrix synthesis and discrepancy detection.
-- **Security & Development Fallback**: JWT bearer token authentication with auto-provisioned local developer credentials for instant startup without friction.
+- **Security & Development Flow**: JWT bearer token authentication with bcrypt password hashing. The frontend auto-provisions a local developer account so startup is friction-free.
 
 ---
 
@@ -92,17 +93,21 @@ ollama pull llama3
 ollama pull nomic-embed-text
 ```
 
-### Step 3: Start the Backend API (FastAPI)
-1. Open a terminal in the root directory:
+### Step 3: Start the Backend API (Rust)
+1. Start the Postgres + Ollama infrastructure:
 ```bash
-source .venv/bin/activate
-cd backend
+docker-compose up -d postgres ollama
 ```
-2. Run the FastAPI development server:
+2. Open a terminal in the root directory:
 ```bash
-uvicorn app.main:app --reload --host 127.0.0.1 --port 8000
+cd backend_rust
+cp .env.example .env
 ```
-3. Confirm backend health by navigating to `http://localhost:8000/docs`.
+3. Run the Axum development server:
+```bash
+cargo run
+```
+4. Confirm backend health by navigating to `http://localhost:8000/health`.
 
 ### Step 4: Start the Frontend Application (Next.js)
 1. Open a new terminal in the `frontend/` folder:
@@ -125,12 +130,12 @@ npm run dev
 
 ## 🧪 Automated Testing & Verification
 
-Run the complete verification suite from the repository root. This runs the AI and
-FastAPI tests, Rust tests, frontend linting, and the frontend production build:
+Run the complete verification suite from the repository root. This runs the AI tests,
+Rust tests, frontend linting, and the frontend production build:
 
 ```bash
-# Python AI and FastAPI tests
-python -m pytest ai/tests backend/tests
+# Python AI tests
+python -m pytest ai/tests
 
 # Rust backend tests, including integration tests
 cargo test --manifest-path backend_rust/Cargo.toml
@@ -143,14 +148,14 @@ npm --prefix frontend run build
 On Windows PowerShell, run the same checks with:
 
 ```powershell
-python -m pytest ai/tests backend/tests; cargo test --manifest-path backend_rust/Cargo.toml; npm --prefix frontend run lint; npm --prefix frontend run build
+python -m pytest ai/tests; cargo test --manifest-path backend_rust/Cargo.toml; npm --prefix frontend run lint; npm --prefix frontend run build
 ```
 
 Run an individual package when diagnosing a failure:
 
 ```bash
-# AI and FastAPI tests
-python -m pytest ai/tests backend/tests
+# AI tests
+python -m pytest ai/tests
 
 # Rust backend tests
 cargo test --manifest-path backend_rust/Cargo.toml
