@@ -1,166 +1,312 @@
-# ChemMind — Production Agentic RAG & Chemistry Deep Engine
+<div align="center">
 
-ChemMind is an agentic research platform designed for molecular chemistry, literature review, and interactive paper synthesis. It seamlessly connects a **Next.js 16 Frontend**, a **Rust (Axum) Backend**, and an **Agentic AI & RAG Subsystem** capable of running on local Ollama models.
+```
+██████╗██╗  ██╗███████╗███╗   ███╗███╗   ███╗██╗███╗   ██╗██████╗ 
+██╔════╝██║  ██║██╔════╝████╗ ████║████╗ ████║██║████╗  ██║██╔══██╗
+██║     ███████║█████╗  ██╔████╔██║██╔████╔██║██║██╔██╗ ██║██║  ██║
+██║     ██╔══██║██╔══╝  ██║╚██╔╝██║██║╚██╔╝██║██║██║╚██╗██║██║  ██║
+╚██████╗██║  ██║███████╗██║ ╚═╝ ██║██║ ╚═╝ ██║██║██║ ╚████║██████╔╝
+ ╚═════╝╚═╝  ╚═╝╚══════╝╚═╝     ╚═╝╚═╝     ╚═╝╚═╝╚═╝  ╚═══╝╚═════╝
+```
+
+Open Course — Chemistry Research Assignment
+
+An AI-powered chemistry research workspace for literature discovery, research-paper analysis, citation tracking, 3D molecular modelling, and chemistry-focused information retrieval — combining retrieval-augmented generation with deterministic chemistry tools.
+
+[![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
+[![Rust](https://img.shields.io/badge/Rust-2021-orange.svg)](backend_rust/)
+[![Next.js](https://img.shields.io/badge/Next.js-16-black.svg)](frontend/)
+[![Python](https://img.shields.io/badge/Python-3.11+-green.svg)](ai/)
+
+</div>
 
 ---
 
-## 🏛️ Technical Stack & Architectural Pillars
+## Table of Contents
 
-ChemMind is built upon three distinct architectural pillars:
+- [Overview](#overview)
+- [Key Features](#key-features)
+- [Architecture](#architecture)
+- [Technology Stack](#technology-stack)
+- [Getting Started](#getting-started)
+- [Configuration](#configuration)
+- [Testing](#testing)
+- [Project Structure](#project-structure)
+- [Contributing](#contributing)
+- [License](#license)
+
+---
+
+## Overview
+
+ChemMind is a unified workspace where researchers, chemists, and students can discover literature, upload research papers, analyze them with natural language, receive grounded answers with precise citations, visualize molecular structures in 3D, and generate assessments — all powered by local or cloud-hosted LLMs.
+
+```text
+┌──────────────────┬────────────────────────────────────┬──────────────────────┐
+│                  │                                    │                      │
+│   DOCUMENTS      │          DOCUMENT VIEWER           │      AI COPILOT      │
+│                  │                                    │                      │
+│   Sources        │          PDF / LaTeX               │      Chat            │
+│   Collections    │          Tables                    │      Citations       │
+│   Notes          │          Equations                 │      Summaries       │
+│   Molecules      │          Figures                   │      Quizzes         │
+│   Quizzes        │          References                │      Actions         │
+│                  │                                    │                      │
+└──────────────────┴────────────────────────────────────┴──────────────────────┘
+```
+
+---
+
+## Key Features
+
+| Feature | Description |
+|---------|-------------|
+| **Agentic RAG Pipeline** | Autonomous query routing with dense/sparse hybrid retrieval, reciprocal rank fusion, and reranking |
+| **Structured Citations** | Every response is grounded in source material with document ID, page number, section title, and direct navigation |
+| **3D Molecular Visualizer** | Interactive 3D molecular mesh renderer with SMILES validation, empirical formula, and molecular weight computation |
+| **Chemistry Engine** | Deterministic molecular property calculations powered by RDKit with pure-Python heuristics fallback |
+| **Grounded Quiz Generator** | AI-generated multiple-choice assessments with plausible distractors and evidence citations |
+| **Multi-Document Reasoning** | Cross-document comparative analysis, conflict detection, and synthesis matrices |
+| **Real-Time Streaming** | SSE token streaming from LLM to frontend with live citation rendering |
+| **Local-First AI** | Full functionality with Ollama-hosted models — no cloud API key required |
+| **Provider-Agnostic Gateway** | Switch between Ollama, OpenAI, Anthropic, or Gemini without code changes |
+| **LaTeX Rendering** | KaTeX-powered inline and display math rendering with section navigation |
+| **Workspace Dashboard** | Multi-workspace management with document upload, quiz modals, and comparison tools |
+
+---
+
+## Architecture
+
+ChemMind is built on three distinct architectural pillars:
 
 ```text
 ┌────────────────────────────────────────────────────────────────────────┐
-│                        FRONTEND (Next.js 16)                           │
-│   • React 19 / TypeScript           • KaTeX LaTeX Document Reader      │
-│   • Tailwind CSS & Framer Motion    • 3D Molecular Mesh & Property UI  │
-│   • SSE Real-time Chat Streaming    • Workspace & Document Sidebars    │
+│                       FRONTEND (Next.js 16)                           │
+│   React 19 / TypeScript             KaTeX LaTeX Document Reader       │
+│   Tailwind CSS & Framer Motion      3D Molecular Mesh & Property UI   │
+│   SSE Real-time Chat Streaming      Workspace & Document Sidebars     │
 └───────────────────────────────────┬────────────────────────────────────┘
-                                    │ REST / SSE API Protocols
+                                    │ REST / SSE API
                                     ▼
 ┌────────────────────────────────────────────────────────────────────────┐
-│                      BACKEND (Rust / Axum API)                         │
-│   • Axum + SQLx (PostgreSQL)           • SSE Streaming Endpoint        │
-│   • JWT auth + bcrypt password hashing • Usage Limits & Quotas         │
-│   • Document Ingestion & Storage       • Chemistry, Quiz & Multi-Doc   │
-│   • Provider-Independent AI Gateway    • Multi-Doc Reasoning Routers   │
+│                     BACKEND (Rust / Axum API)                          │
+│   Axum + SQLx (PostgreSQL)             SSE Streaming Endpoint         │
+│   JWT Auth + bcrypt Hashing            Usage Limits & Quotas          │
+│   Document Ingestion & Storage         Chemistry, Quiz & Multi-Doc    │
+│   Provider-Independent AI Gateway      Multi-Doc Reasoning Routers    │
 └───────────────────────────────────┬────────────────────────────────────┘
                                     │ AI Gateway Bridge
                                     ▼
 ┌────────────────────────────────────────────────────────────────────────┐
-│                      AI & AGENTIC RAG SUBSYSTEM                        │
-│   • Agentic Router & Web Fallback   • Chemistry Property Engine (RDKit) │
-│   • Dense/Sparse Hybrid Retrieval   • Grounded Quiz Generator          │
-│   • Citation Resolver & Linker      • Multi-Doc Reasoning Engine       │
-│   • Ollama Local LLM Provider       • Provider-Agnostic Gateway        │
+│                    AI & AGENTIC RAG SUBSYSTEM                          │
+│   Agentic Router & Web Fallback       Chemistry Property Engine       │
+│   Dense/Sparse Hybrid Retrieval       Grounded Quiz Generator         │
+│   Citation Resolver & Linker          Multi-Doc Reasoning Engine      │
+│   Ollama Local LLM Provider           Provider-Agnostic Gateway       │
 └────────────────────────────────────────────────────────────────────────┘
 ```
 
----
-
-### Pillar 1: Modern Frontend Architecture (`frontend/`)
-
-- **Framework & Core**: Next.js 16 (App Router with Turbopack), React 19, TypeScript.
-- **Styling & Aesthetics**: Custom Vanilla CSS & Tailwind CSS with curated color schemes, dark/light theme toggle, glassmorphism overlays, and Framer Motion micro-animations.
-- **LaTeX Document Rendering**: KaTeX engine rendering inline math ($\psi_{sp^3}$) and display block equations ($\theta_{\min}$) with section navigation.
-- **3D Molecular Visualizer**: Interactive 3D molecular mesh renderer calculating real 3D atomic coordinates, SMILES syntax validation, empirical formula, and molecular weights.
-- **Workspace Dashboard**: Dynamic document upload, file switching sidebar, quiz assessment modals, and multi-document comparison synthesis UI.
-- **Real-Time Assistant Panel**: Dynamic model selector (Ollama Local, ChemMind RAG, GPT-4o, Claude 3.5 Sonnet), SSE token streaming, and clickable citation links.
+For detailed architecture documentation, see [ARCHITECTURE.md](ARCHITECTURE.md).
 
 ---
 
-### Pillar 2: Backend API (`backend_rust/`)
+## Technology Stack
 
-- **Framework & Runtime**: Axum (Rust) with Tokio.
-- **Database ORM**: SQLx with PostgreSQL (async connection pooling).
-- **API Endpoints**:
-  - `/api/v1/workspaces`: Workspace CRUD, member access roles, quota enforcement.
-  - `/api/v1/workspaces/{id}/documents`: PDF document upload, text extraction, semantic metadata.
-  - `/api/v1/workspaces/{id}/conversations/{id}/chat`: SSE token streaming and synchronous RAG generation.
-  - `/api/v1/chemistry`: Chemical SMILES property calculation (`/properties`) and 3D spatial coordinates (`/3d`).
-  - `/api/v1/workspaces/{id}/quizzes`: Grounded multiple-choice quiz generation with evidence citations.
-  - `/api/v1/workspaces/{id}/reasoning/multi-doc`: Cross-document matrix synthesis and discrepancy detection.
-- **Security & Development Flow**: JWT bearer token authentication with bcrypt password hashing. The frontend auto-provisions a local developer account so startup is friction-free.
-
----
-
-### Pillar 3: AI & Agentic RAG Subsystem (`ai/`)
-
-- **Agentic Router (`AgenticRouter`)**: Autonomously evaluates internal document sufficiency vs query intent. Routes queries to internal vector search, web search fallback, or hybrid synthesis.
-- **Hybrid Retrieval Engine (`HybridRetriever`)**: Merges dense vector embeddings (`DenseRetriever`) with sparse keyword matching (`BM25KeywordRetriever`) via Reciprocal Rank Fusion (`rrf`).
-- **Citation Resolver (`CitationResolver`)**: Extracts grounded source evidence and attaches metadata (document ID, page number, section title, web URLs) for exact traceability.
-- **Chemistry Engine (`ChemistryEngine`)**: Validates SMILES strings, calculates exact molecular weights, extracts empirical formulas, and computes 3D molecular spatial mesh coordinates via RDKit with pure-Python heuristics fallback.
-- **Grounded Quiz Engine (`QuizGenerator`)**: Analyzes document chunks to craft multiple-choice questions with plausible distractors and explanation citations.
-- **Multi-Doc Reasoning Engine (`MultiDocReasoningEngine`)**: Cross-examines multiple research papers to construct comparative analysis matrices and detect conflicting claims.
-- **Local Ollama Integration (`OllamaLLMProvider` & `LLMGateway`)**: Provider-agnostic gateway supporting local Ollama models (`llama3`, `mistral`, `gemma`) via REST (`http://localhost:11434/api/chat`).
+| Layer | Technology | Purpose |
+|-------|-----------|---------|
+| **Frontend** | Next.js 16, React 19, TypeScript | Application shell, workspace UI, document viewer |
+| **Styling** | Tailwind CSS, Framer Motion | Responsive design, animations, dark/light themes |
+| **Math Rendering** | KaTeX | Inline and display LaTeX equations |
+| **Backend** | Rust, Axum, Tokio | High-performance API gateway, auth, orchestration |
+| **Database** | PostgreSQL (SQLx) | Application state, user data, workspace metadata |
+| **Vector Store** | Qdrant | Document embeddings and semantic retrieval |
+| **AI/LLM** | Python, Ollama, OpenAI API | RAG pipeline, generation, embeddings |
+| **Chemistry** | RDKit | Deterministic molecular property calculations |
+| **Infrastructure** | Docker Compose, Redis | Local development stack, caching |
+| **Authentication** | JWT (HS256), bcrypt | Token-based auth with password hashing |
 
 ---
 
-## 🚀 Definitive Local Launch Guide (Using Local Ollama)
+## Getting Started
 
-Follow these steps to run the complete ChemMind application locally with your own Ollama model.
+### Prerequisites
 
-### Step 1: Install & Start Ollama
-Ensure [Ollama](https://ollama.com) is installed on your local machine. Start the local server:
+- [Rust](https://rustup.rs/) (latest stable)
+- [Node.js](https://nodejs.org/) (v18+)
+- [Python](https://python.org/) (3.11+)
+- [Docker](https://docker.com/) & Docker Compose
+- [Ollama](https://ollama.com/) (for local LLM inference)
+
+### 1. Start Infrastructure
+
 ```bash
-ollama serve
+docker-compose up -d postgres qdrant redis ollama
 ```
-*(Default host: `http://localhost:11434`)*
 
-### Step 2: Pull Your Local Model
-In a separate terminal, pull your preferred LLM and embedding models (e.g. `llama3` or `mistral`):
+### 2. Pull Local Models
+
 ```bash
 ollama pull llama3
 ollama pull nomic-embed-text
 ```
 
-### Step 3: Start the Backend API (Rust)
-1. Start the Postgres + Ollama infrastructure:
-```bash
-docker-compose up -d postgres ollama
-```
-2. Open a terminal in the root directory:
+### 3. Start the Backend
+
 ```bash
 cd backend_rust
 cp .env.example .env
-```
-3. Run the Axum development server:
-```bash
 cargo run
 ```
-4. Confirm backend health by navigating to `http://localhost:8000/health`.
 
-### Step 4: Start the Frontend Application (Next.js)
-1. Open a new terminal in the `frontend/` folder:
+Verify at `http://localhost:8000/health`.
+
+### 4. Start the Frontend
+
 ```bash
 cd frontend
+npm install
 npm run dev
 ```
-2. Open `http://localhost:3000` in your web browser.
 
-### Step 5: Verify the Application
-- Navigate to the **Projects** dashboard at `http://localhost:3000/projects`.
-- Click **Open Workspace** or create a new workspace.
-- In the Workspace view:
-  - **Chat Assistant**: Select **"Ollama Local (llama3)"** in the assistant panel and type a query. Watch real-time streaming tokens and citation badges!
-  - **3D Visualise**: Click the **"3D Visualise"** button in the header toolbar, enter `CH4` or `benzene`, and click **Compute 3D Structure** to render calculated 3D coordinates and molecular properties.
-  - **Generate Quiz**: Click **"Generate Quiz"** in the top bar to create an assessment grounded in your workspace documents.
-  - **Multi-Doc Synthesis**: Click **"Multi-Doc Synthesis"** to perform cross-document comparison and conflict detection.
+Open `http://localhost:3000`.
+
+### 5. Verify
+
+Navigate to `http://localhost:3000/projects`, open or create a workspace, and:
+
+- Select **Ollama Local (llama3)** in the assistant panel and chat with real-time streaming
+- Click **3D Visualize**, enter `CH4` or `benzene`, and compute 3D coordinates
+- Generate a quiz grounded in your workspace documents
+- Run multi-document synthesis for cross-paper comparison
 
 ---
 
-## 🧪 Automated Testing & Verification
+## Configuration
 
-Run the complete verification suite from the repository root. This runs the AI tests,
-Rust tests, frontend linting, and the frontend production build:
+### Backend (`backend_rust/.env`)
+
+| Variable | Default | Description |
+|----------|---------|-------------|
+| `CHEMMIND_DATABASE_URL` | `postgresql://postgres:postgres_password@localhost:5432/chemmind_db` | PostgreSQL connection string |
+| `CHEMMIND_SECRET_KEY` | *(change in production)* | JWT signing key |
+| `CHEMMIND_OLLAMA_BASE_URL` | `http://localhost:11434` | Ollama service endpoint |
+| `CHEMMIND_DEFAULT_LLM_MODEL` | `llama3` | Default LLM model |
+| `CHEMMIND_DEFAULT_EMBEDDING_MODEL` | `nomic-embed-text` | Default embedding model |
+| `CHEMMIND_STORAGE_DIR` | `./uploads` | Document file storage |
+| `CHEMMIND_MAX_UPLOAD_SIZE_MB` | `50` | Maximum upload size |
+
+### AI Subsystem (`ai/`)
+
+| Variable | Default | Description |
+|----------|---------|-------------|
+| `CHEMMIND_AI_AI_PROVIDER` | `ollama` | Active LLM provider |
+| `CHEMMIND_AI_EMBEDDING_PROVIDER` | `ollama` | Active embedding provider |
+| `CHEMMIND_AI_QDRANT_HOST` | `localhost` | Qdrant vector store host |
+| `CHEMMIND_AI_QDRANT_PORT` | `6333` | Qdrant vector store port |
+
+Full example available at [backend_rust/.env.example](backend_rust/.env.example).
+
+---
+
+## Testing
+
+Run the complete verification suite:
 
 ```bash
-# Python AI tests
-python -m pytest ai/tests
+# Python AI unit tests
+python -m pytest tests/
 
-# Rust backend tests, including integration tests
+# Rust backend tests (unit + integration)
 cargo test --manifest-path backend_rust/Cargo.toml
 
-# Frontend checks
+# Frontend lint
 npm --prefix frontend run lint
+
+# Frontend production build
 npm --prefix frontend run build
 ```
 
-On Windows PowerShell, run the same checks with:
+On Windows PowerShell:
 
 ```powershell
-python -m pytest ai/tests; cargo test --manifest-path backend_rust/Cargo.toml; npm --prefix frontend run lint; npm --prefix frontend run build
+python -m pytest tests/; cargo test --manifest-path backend_rust/Cargo.toml; npm --prefix frontend run lint; npm --prefix frontend run build
 ```
 
-Run an individual package when diagnosing a failure:
+---
 
-```bash
-# AI tests
-python -m pytest ai/tests
+## Project Structure
 
-# Rust backend tests
-cargo test --manifest-path backend_rust/Cargo.toml
-
-# Frontend lint and production build
-npm --prefix frontend run lint
-npm --prefix frontend run build
+```text
+chemmind/
+├── frontend/                  # Next.js 16 application
+│   ├── app/                   #   App Router pages
+│   ├── components/            #   React components
+│   └── package.json
+│
+├── backend_rust/              # Axum REST API
+│   ├── src/
+│   │   ├── api/v1/            #   Route handlers
+│   │   ├── models/            #   Data models (SQLx)
+│   │   ├── services/          #   Business logic
+│   │   └── main.rs
+│   ├── migrations/            #   SQL migrations
+│   └── Cargo.toml
+│
+├── ai/                        # Python AI & RAG subsystem
+│   ├── agentic/               #   Query routing & agent logic
+│   ├── chunking/              #   Document chunking (LaTeX/Chem)
+│   ├── chemistry/             #   RDKit molecular engine
+│   ├── citations/             #   Citation resolution & linking
+│   ├── embeddings/            #   Embedding pipeline
+│   ├── generation/            #   RAG service & LLM gateway
+│   ├── prompts/               #   Prompt templates
+│   ├── providers/             #   LLM & embedding providers
+│   ├── quizzes/               #   Quiz generation engine
+│   ├── retrieval/             #   Hybrid retrieval engine
+│   ├── reranking/             #   Result reranking
+│   ├── vector_store/          #   Qdrant vector store interface
+│   └── config.py
+│
+├── tests/                     # Cross-cutting test suite
+├── scripts/                   # DevOps & utility scripts
+├── docker-compose.yml         # Local infrastructure
+├── ARCHITECTURE.md            # Detailed system architecture
+├── CONTRIBUTING.md            # Contribution workflow
+└── LICENSE                    # MIT License
 ```
+
+---
+
+## API Endpoints
+
+| Endpoint | Method | Description |
+|----------|--------|-------------|
+| `/api/v1/workspaces` | CRUD | Workspace management with quota enforcement |
+| `/api/v1/workspaces/{id}/documents` | POST | PDF upload, text extraction, semantic metadata |
+| `/api/v1/workspaces/{id}/conversations/{id}/chat` | POST | SSE streaming and synchronous RAG generation |
+| `/api/v1/chemistry/properties` | POST | SMILES validation and molecular weight calculation |
+| `/api/v1/chemistry/3d` | POST | 3D spatial coordinate generation |
+| `/api/v1/workspaces/{id}/quizzes` | POST | Grounded multiple-choice quiz generation |
+| `/api/v1/workspaces/{id}/reasoning/multi-doc` | POST | Cross-document synthesis and conflict detection |
+
+---
+
+## Contributing
+
+See [CONTRIBUTING.md](CONTRIBUTING.md) for the full workflow.
+
+```text
+Branch Assignments:
+  rag        → AI, RAG pipeline, LLM integration
+  frontend   → UI, React/Next.js frontend
+  backend    → Rust (Axum), APIs, database
+  devops     → Deployment, Docker, CI/CD, infrastructure
+```
+
+---
+
+## License
+
+This project is licensed under the [MIT License](LICENSE).
+
+Copyright (c) 2026 Raghavapriyan Saravanapriyan
