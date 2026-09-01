@@ -1,0 +1,19 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n                                INSERT INTO citations (message_id, document_id, page, chunk_id, section, excerpt)\n                                VALUES ($1, $2, $3, $4, $5, $6)\n                                ",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "Uuid",
+        "Int4",
+        "Varchar",
+        "Varchar",
+        "Text"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "80431cd4fb136bb711ccd4de7d7a95ae3dfe4f2a104020cee5bc17bb995a58c5"
+}

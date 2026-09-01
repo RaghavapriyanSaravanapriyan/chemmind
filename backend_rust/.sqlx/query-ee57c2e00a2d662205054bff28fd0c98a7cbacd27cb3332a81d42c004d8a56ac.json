@@ -1,0 +1,64 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "SELECT id, message_id, document_id, page, chunk_id, section, excerpt, created_at FROM citations WHERE message_id = $1 ORDER BY created_at",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "id",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 1,
+        "name": "message_id",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 2,
+        "name": "document_id",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 3,
+        "name": "page",
+        "type_info": "Int4"
+      },
+      {
+        "ordinal": 4,
+        "name": "chunk_id",
+        "type_info": "Varchar"
+      },
+      {
+        "ordinal": 5,
+        "name": "section",
+        "type_info": "Varchar"
+      },
+      {
+        "ordinal": 6,
+        "name": "excerpt",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 7,
+        "name": "created_at",
+        "type_info": "Timestamptz"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Uuid"
+      ]
+    },
+    "nullable": [
+      false,
+      false,
+      true,
+      true,
+      true,
+      true,
+      true,
+      false
+    ]
+  },
+  "hash": "ee57c2e00a2d662205054bff28fd0c98a7cbacd27cb3332a81d42c004d8a56ac"
+}

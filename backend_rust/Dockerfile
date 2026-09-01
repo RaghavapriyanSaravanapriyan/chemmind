@@ -9,9 +9,13 @@ RUN apt-get update && apt-get install -y \
     libssl-dev \
     && rm -rf /var/lib/apt/lists/*
 
-# Copy Cargo files first for better caching
+# Copy Cargo files and sqlx offline query cache first for better caching
 COPY Cargo.toml Cargo.lock ./
 COPY migrations ./migrations
+COPY .sqlx ./.sqlx
+
+# sqlx macros compile against the offline query cache, so no live DB is needed.
+ENV SQLX_OFFLINE=true
 
 # Create dummy main to cache dependencies
 RUN mkdir -p src && echo "fn main() {}" > src/main.rs
