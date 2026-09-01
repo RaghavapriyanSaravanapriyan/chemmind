@@ -118,6 +118,18 @@ For detailed architecture documentation, see [ARCHITECTURE.md](ARCHITECTURE.md).
 | **Infrastructure** | Docker Compose, Redis | Local development stack, caching |
 | **Authentication** | JWT (HS256), bcrypt | Token-based auth with password hashing |
 
+**API Endpoints**:
+- `/api/v1/workspaces`: Workspace CRUD, member access roles, quota enforcement.
+- `/api/v1/workspaces/{id}/documents`: Document upload (PDF, TXT, MD, CSV, TeX), text extraction, semantic metadata.
+- `/api/v1/workspaces/{id}/conversations/{id}/chat`: SSE token streaming and synchronous RAG generation.
+- `/api/v1/chemistry`: Chemical SMILES property calculation (`/properties`) and 3D spatial coordinates (`/3d`).
+- `/api/v1/workspaces/{id}/quizzes`: Grounded multiple-choice quiz generation with evidence citations.
+- `/api/v1/workspaces/{id}/reasoning/multi-doc`: Cross-document matrix synthesis and discrepancy detection.
+- `/api/v1/ai/models`: Ollama model listing via backend proxy (no direct browser→Ollama).
+- `/api/v1/ai/embed`: Text embeddings (Ollama with mock fallback, model override supported).
+- `/api/v1/ai/api-keys`: BYOK storage (keys never logged, only last4 exposed).
+- **Security & Development Flow**: JWT bearer token authentication with bcrypt password hashing. The frontend auto-provisions a local developer account so startup is friction-free.
+
 ---
 
 ## Getting Started
@@ -139,8 +151,10 @@ docker-compose up -d postgres qdrant redis ollama
 ### 2. Pull Local Models
 
 ```bash
-ollama pull llama3
-ollama pull nomic-embed-text
+ollama pull qwen2.5:1.5b
+ollama pull hf.co/CompendiumLabs/bge-base-en-v1.5-gguf:latest
+# Or list what's already installed and set CHEMMIND_DEFAULT_* to match:
+ollama list
 ```
 
 ### 3. Start the Backend
@@ -167,7 +181,7 @@ Open `http://localhost:3000`.
 
 Navigate to `http://localhost:3000/projects`, open or create a workspace, and:
 
-- Select **Ollama Local (llama3)** in the assistant panel and chat with real-time streaming
+- Select **Ollama Local (qwen2.5:1.5b)** in the assistant panel and chat with real-time streaming
 - Click **3D Visualize**, enter `CH4` or `benzene`, and compute 3D coordinates
 - Generate a quiz grounded in your workspace documents
 - Run multi-document synthesis for cross-paper comparison
@@ -183,8 +197,8 @@ Navigate to `http://localhost:3000/projects`, open or create a workspace, and:
 | `CHEMMIND_DATABASE_URL` | `postgresql://postgres:postgres_password@localhost:5432/chemmind_db` | PostgreSQL connection string |
 | `CHEMMIND_SECRET_KEY` | *(change in production)* | JWT signing key |
 | `CHEMMIND_OLLAMA_BASE_URL` | `http://localhost:11434` | Ollama service endpoint |
-| `CHEMMIND_DEFAULT_LLM_MODEL` | `llama3` | Default LLM model |
-| `CHEMMIND_DEFAULT_EMBEDDING_MODEL` | `nomic-embed-text` | Default embedding model |
+| `CHEMMIND_DEFAULT_LLM_MODEL` | `qwen2.5:1.5b` | Default LLM model (must be `ollama list` installed) |
+| `CHEMMIND_DEFAULT_EMBEDDING_MODEL` | `hf.co/CompendiumLabs/bge-base-en-v1.5-gguf:latest` | Default embedding model (must be installed) |
 | `CHEMMIND_STORAGE_DIR` | `./uploads` | Document file storage |
 | `CHEMMIND_MAX_UPLOAD_SIZE_MB` | `50` | Maximum upload size |
 

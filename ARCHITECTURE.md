@@ -2004,16 +2004,29 @@ API contracts should be versioned:
 Example:
 
 ```text
-POST   /api/v1/auth/...
+POST   /api/v1/auth/register
+POST   /api/v1/auth/login
+GET    /api/v1/auth/me
 GET    /api/v1/workspaces
 POST   /api/v1/workspaces
 GET    /api/v1/workspaces/{id}
+PUT    /api/v1/workspaces/{id}
+DELETE /api/v1/workspaces/{id}
+POST   /api/v1/workspaces/{id}/members
 POST   /api/v1/workspaces/{id}/documents
 GET    /api/v1/workspaces/{id}/documents
-POST   /api/v1/workspaces/{id}/chat
+GET    /api/v1/workspaces/{id}/documents/{docId}
+DELETE /api/v1/workspaces/{id}/documents/{docId}
+POST   /api/v1/workspaces/{id}/conversations
 GET    /api/v1/workspaces/{id}/conversations
+POST   /api/v1/workspaces/{id}/conversations/{cid}/chat
+GET    /api/v1/workspaces/{id}/conversations/{cid}/chat/stream
+GET    /api/v1/workspaces/{id}/usage
 POST   /api/v1/workspaces/{id}/quizzes
-POST   /api/v1/workspaces/{id}/molecules
+POST   /api/v1/workspaces/{id}/reasoning/multi-doc
+POST   /api/v1/chemistry/properties
+POST   /api/v1/chemistry/3d
+GET    /api/v1/health
 ```
 
 The exact routes may evolve.
