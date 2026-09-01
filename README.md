@@ -2,7 +2,7 @@
 
 <img width="1252" height="285" alt="ChemMind banner" src="https://github.com/user-attachments/assets/9d7618f5-bd4e-4773-bf2d-2465d0e9fd2b" />
 
-**Open Course — Chemistry Research Assignment**
+**Open Source — Chemistry Research Assignment**
 
 An AI-powered chemistry research workspace for literature discovery, research-paper analysis, citation tracking, 3D molecular modelling, and chemistry-focused information retrieval — combining retrieval-augmented generation with deterministic chemistry tools.
 
