@@ -208,7 +208,7 @@ git push
 |--------|----------------|
 | `rag` | AI, RAG pipeline, LLM integration |
 | `frontend` | UI, React/Next.js frontend |
-| `backend` | FastAPI, APIs, database |
+| `backend` | Rust (Axum), APIs, database |
 | `devops` | Deployment, Docker, CI/CD, infrastructure |
 
 ---

@@ -1,1 +1,0 @@
-# ChemMind Backend Package

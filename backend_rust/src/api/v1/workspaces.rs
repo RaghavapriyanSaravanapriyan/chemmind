@@ -17,7 +17,7 @@ struct WorkspaceWithRole {
     role: String,
 }
 
-async fn get_workspace_with_role(
+pub(crate) async fn get_workspace_with_role(
     pool: &PgPool,
     workspace_id: Uuid,
     user_id: Uuid,

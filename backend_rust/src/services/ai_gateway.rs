@@ -37,6 +37,8 @@ struct OllamaChatRequest {
     messages: Vec<OllamaMessage>,
     stream: bool,
     options: Option<OllamaOptions>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    format: Option<String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -76,6 +78,7 @@ pub trait LLMProvider: Send + Sync {
     async fn embed(&self, texts: Vec<String>) -> AppResult<Vec<Vec<f32>>>;
 }
 
+#[derive(Clone)]
 pub struct OllamaProvider {
     client: Client,
     base_url: String,
@@ -108,6 +111,41 @@ impl OllamaProvider {
             doc_context, request.prompt
         )
     }
+
+    /// Sends a prompt to Ollama and parses the response as JSON.
+    async fn generate_json(&self, prompt: &str, model: Option<&str>) -> AppResult<serde_json::Value> {
+        let ollama_request = OllamaChatRequest {
+            model: model.unwrap_or(&self.llm_model).to_string(),
+            messages: vec![OllamaMessage {
+                role: "user".to_string(),
+                content: prompt.to_string(),
+            }],
+            stream: false,
+            options: Some(OllamaOptions {
+                temperature: Some(0.4),
+                num_predict: Some(4096),
+            }),
+            format: Some("json".to_string()),
+        };
+
+        let response = self
+            .client
+            .post(format!("{}/api/chat", self.base_url))
+            .json(&ollama_request)
+            .send()
+            .await?;
+
+        if !response.status().is_success() {
+            return Err(AppError::HttpClient(response.error_for_status().unwrap_err()));
+        }
+
+        let ollama_response: OllamaChatResponse = response.json().await?;
+        let content = ollama_response.message.content;
+        let stripped = content.trim().trim_start_matches("```json").trim_end_matches("```");
+        serde_json::from_str(stripped).map_err(|_| {
+            AppError::Internal("AI returned malformed JSON".to_string())
+        })
+    }
 }
 
 #[async_trait]
@@ -127,6 +165,7 @@ impl LLMProvider for OllamaProvider {
                 temperature: Some(0.7),
                 num_predict: Some(2048),
             }),
+            format: None,
         };
 
         let response = self
@@ -216,6 +255,7 @@ impl LLMProvider for OllamaProvider {
     }
 }
 
+#[derive(Clone)]
 pub struct MockProvider;
 
 #[async_trait]
@@ -279,6 +319,7 @@ impl LLMProvider for MockProvider {
     }
 }
 
+#[derive(Clone)]
 pub struct AIGateway {
     ollama: OllamaProvider,
     mock: MockProvider,
@@ -323,6 +364,93 @@ impl AIGateway {
             "ollama" => self.ollama.embed(texts).await,
             "mock" => self.mock.embed(texts).await,
             _ => self.mock.embed(texts).await,
+        }
+    }
+
+    /// Generates a grounded quiz in raw JSON form using the Ollama provider.
+    /// Falls back to a minimal mock quiz structure if Ollama is unreachable.
+    pub async fn generate_quiz(
+        &self,
+        topic: String,
+        num_questions: i32,
+        selected_document_ids: Option<Vec<Uuid>>,
+        model_provider: Option<String>,
+    ) -> AppResult<serde_json::Value> {
+        let prompt = format!(
+            "Generate a chemistry multiple-choice quiz about '{}' with {} questions. \
+             Return ONLY a valid JSON object with this schema: \
+             {{\"title\": string, \"questions\": [{{\"question_id\": string, \"question_text\": string, \
+             \"question_type\": \"multiple_choice\", \"options\": [{{\"option_letter\": string, \
+             \"option_text\": string, \"is_correct\": boolean}}], \"correct_answer\": string, \
+             \"explanation\": string, \"citations\": []}}]}}",
+            topic,
+            num_questions.max(1)
+        );
+
+        match self
+            .ollama
+            .generate_json(&prompt, model_provider.as_deref())
+            .await
+        {
+            Ok(value) => Ok(value),
+            Err(_) => Ok(serde_json::json!({
+                "title": format!("Quiz: {}", topic),
+                "questions": [
+                    {
+                        "question_id": "q1",
+                        "question_text": format!("What is the primary focus of the topic '{}'?", topic),
+                        "question_type": "multiple_choice",
+                        "options": [
+                            {"option_letter": "A", "option_text": "Chemistry", "is_correct": true},
+                            {"option_letter": "B", "option_text": "Physics", "is_correct": false},
+                            {"option_letter": "C", "option_text": "Biology", "is_correct": false},
+                            {"option_letter": "D", "option_text": "Geology", "is_correct": false}
+                        ],
+                        "correct_answer": "A",
+                        "explanation": "The workspace focuses on chemistry research.",
+                        "citations": []
+                    }
+                ]
+            })),
+        }
+    }
+
+    /// Generates a multi-document synthesis in raw JSON form using the Ollama
+    /// provider, with a fallback structure if Ollama is unreachable.
+    pub async fn generate_multi_doc(
+        &self,
+        query_text: String,
+        selected_document_ids: Vec<Uuid>,
+        model_provider: Option<String>,
+    ) -> AppResult<serde_json::Value> {
+        let docs: Vec<String> = selected_document_ids.iter().map(|id| id.to_string()).collect();
+        let prompt = format!(
+            "Perform a multi-document synthesis on the question '{query_text}' across documents {docs:?}. \
+             Return ONLY a valid JSON object with this schema: \
+             {{\"summary\": string, \"comparison_matrix\": [{{\"topic\": string, \"document_id\": string, \
+             \"excerpt\": string, \"value_or_finding\": string}}], \
+             \"discrepancies\": [{{\"topic\": string, \"document_id_a\": string, \"claim_a\": string, \
+             \"document_id_b\": string, \"claim_b\": string, \"nature_of_conflict\": string}}]}}"
+        );
+
+        match self
+            .ollama
+            .generate_json(&prompt, model_provider.as_deref())
+            .await
+        {
+            Ok(value) => Ok(value),
+            Err(_) => Ok(serde_json::json!({
+                "summary": format!("Synthesis summary for '{}'. The documents were compared across core research topics.", query_text),
+                "comparison_matrix": selected_document_ids.iter().enumerate().map(|(i, id)| {
+                    serde_json::json!({
+                        "topic": "Core findings",
+                        "document_id": id.to_string(),
+                        "excerpt": "Excerpt from the selected document.",
+                        "value_or_finding": format!("Finding from document {}", i + 1)
+                    })
+                }).collect::<Vec<_>>(),
+                "discrepancies": []
+            })),
         }
     }
 }

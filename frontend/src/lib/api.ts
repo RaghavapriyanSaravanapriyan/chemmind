@@ -1,5 +1,82 @@
 export const API_BASE = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000/api/v1";
 
+// ── AUTHENTICATION HELPERS ──
+// The Rust backend requires JWT bearer authentication for all protected
+// endpoints. To keep local development frictionless, a dev user is
+// auto-provisioned on first use and the resulting token is attached to
+// every request.
+
+const TOKEN_KEY = "chemmind_access_token";
+
+function getStoredToken(): string | null {
+  if (typeof window === "undefined") return null;
+  try {
+    return localStorage.getItem(TOKEN_KEY);
+  } catch {
+    return null;
+  }
+}
+
+function storeToken(token: string) {
+  if (typeof window === "undefined") return;
+  try {
+    localStorage.setItem(TOKEN_KEY, token);
+  } catch {
+    // ignore
+  }
+}
+
+async function fetchJson(url: string, init?: RequestInit): Promise<Response> {
+  const token = getStoredToken();
+  const headers: Record<string, string> = {
+    ...(init?.headers as Record<string, string> | undefined),
+  };
+  if (token) headers["Authorization"] = `Bearer ${token}`;
+  return fetch(url, { ...init, headers });
+}
+
+/**
+ * Ensures a valid access token exists against the Rust backend.
+ * On first run it registers and logs in a local developer account, then
+ * reuses the stored token on subsequent calls.
+ */
+export async function ensureAuthToken(): Promise<string | null> {
+  const existing = getStoredToken();
+  if (existing) return existing;
+
+  const email = "dev@chemmind.local";
+  const password = "chemmind-dev-password";
+  const fullName = "Local Developer";
+
+  const headers = { "Content-Type": "application/json" };
+
+  try {
+    const regRes = await fetch(`${API_BASE}/auth/register`, {
+      method: "POST",
+      headers,
+      body: JSON.stringify({ email, password, full_name: fullName }),
+    });
+    // 409 = already registered, that's fine
+    if (regRes.ok || regRes.status === 409) {
+      const loginRes = await fetch(`${API_BASE}/auth/login`, {
+        method: "POST",
+        headers,
+        body: JSON.stringify({ email, password }),
+      });
+      if (loginRes.ok) {
+        const data = await loginRes.json();
+        if (data.access_token) {
+          storeToken(data.access_token);
+          return data.access_token;
+        }
+      }
+    }
+  } catch {
+    // Backend unreachable — proceed without a token (local fallbacks apply).
+  }
+  return null;
+}
+
 export interface Citation {
   document_id?: string;
   page?: number;
@@ -135,7 +212,8 @@ export function saveLocalWorkspaces(workspaces: Workspace[]) {
 
 export async function fetchWorkspaces(): Promise<Workspace[]> {
   try {
-    const res = await fetch(`${API_BASE}/workspaces`);
+    await ensureAuthToken();
+    const res = await fetchJson(`${API_BASE}/workspaces`);
     if (!res.ok) throw new Error("Failed");
     const remote = await res.json();
     if (remote && remote.length > 0) return remote;
@@ -157,7 +235,8 @@ export async function createWorkspace(name: string, description: string, color?:
   };
 
   try {
-    const res = await fetch(`${API_BASE}/workspaces`, {
+    await ensureAuthToken();
+    const res = await fetchJson(`${API_BASE}/workspaces`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ name, description }),
@@ -178,7 +257,8 @@ export async function createWorkspace(name: string, description: string, color?:
 
 export async function deleteWorkspace(id: string): Promise<boolean> {
   try {
-    await fetch(`${API_BASE}/workspaces/${id}`, { method: "DELETE" });
+    await ensureAuthToken();
+    await fetchJson(`${API_BASE}/workspaces/${id}`, { method: "DELETE" });
   } catch {
     // ignore
   }
@@ -224,7 +304,8 @@ export function saveLocalMessages(workspaceId: string, msgs: ChatMessage[]) {
 
 export async function createConversation(workspaceId: string, title = "New Conversation") {
   try {
-    const res = await fetch(`${API_BASE}/workspaces/${workspaceId}/conversations`, {
+    await ensureAuthToken();
+    const res = await fetchJson(`${API_BASE}/workspaces/${workspaceId}/conversations`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ title }),
@@ -244,7 +325,8 @@ export async function sendChatMessageSync(
   selectedDocIds?: string[]
 ): Promise<ChatMessage> {
   try {
-    const res = await fetch(`${API_BASE}/workspaces/${workspaceId}/conversations/${conversationId}/chat`, {
+    await ensureAuthToken();
+    const res = await fetchJson(`${API_BASE}/workspaces/${workspaceId}/conversations/${conversationId}/chat`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
@@ -298,11 +380,105 @@ export async function sendChatMessageSync(
   }
 }
 
+/**
+ * Streams an assistant chat response from the Rust backend SSE endpoint.
+ * Parses the server-sent-event stream returned by
+ * `GET /workspaces/{ws}/conversations/{conv}/chat/stream?prompt=...`.
+ *
+ * Unlike EventSource, this uses fetch so the JWT authorization header can be
+ * attached (EventSource cannot send custom headers).
+ *
+ * Returns true if the stream was read successfully from the backend; false
+ * if the backend is unreachable (caller should fall back).
+ */
+export async function streamChatMessage(
+  workspaceId: string,
+  conversationId: string,
+  prompt: string,
+  modelProvider = "llama3:latest",
+  selectedDocIds?: string[],
+  onToken?: (token: string) => void,
+  onCitations?: (citations: Citation[]) => void
+): Promise<boolean> {
+  try {
+    await ensureAuthToken();
+    const params = new URLSearchParams({ prompt });
+    if (modelProvider) params.set("model_provider", modelProvider);
+    if (selectedDocIds && selectedDocIds.length > 0) {
+      params.set("selected_document_ids", selectedDocIds.join(","));
+    }
+    const url = `${API_BASE}/workspaces/${workspaceId}/conversations/${conversationId}/chat/stream?${params.toString()}`;
+    const res = await fetchJson(url, { method: "GET" });
+    if (!res.ok || !res.body) return false;
+
+    const reader = res.body.getReader();
+    const decoder = new TextDecoder();
+    let buffer = "";
+    let fullContent = "";
+    let lastCitations: Citation[] = [];
+
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      buffer += decoder.decode(value, { stream: true });
+
+      let idx: number;
+      while ((idx = buffer.indexOf("\n\n")) !== -1) {
+        const rawEvent = buffer.slice(0, idx);
+        buffer = buffer.slice(idx + 2);
+        parseSseData(rawEvent, (chunk) => {
+          if (chunk.token) {
+            fullContent += chunk.token;
+            onToken?.(chunk.token);
+          }
+          if (chunk.citations && chunk.citations.length > 0) {
+            lastCitations = chunk.citations as unknown as Citation[];
+          }
+        });
+      }
+    }
+
+    onCitations?.(lastCitations);
+    if (!fullContent) return false;
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+function parseSseData(rawEvent: string, onChunk: (chunk: StreamChunk) => void) {
+  const lines = rawEvent.split("\n");
+  for (const line of lines) {
+    if (line.startsWith("data:")) {
+      const data = line.slice(5).trim();
+      if (!data) continue;
+      try {
+        const parsed = JSON.parse(data);
+        if (parsed.error) {
+          console.error("Stream error:", parsed.error);
+          continue;
+        }
+        onChunk(parsed);
+      } catch {
+        // ignore non-JSON data payloads
+      }
+    }
+  }
+}
+
+interface StreamChunk {
+  token?: string;
+  finish_reason?: string | null;
+  citations?: Citation[];
+  full_content?: string;
+}
+
 // ── CHEMISTRY API ──
 
 export async function fetchChemistry3D(promptOrSmiles: string): Promise<Mol3DCoordinates | null> {
   try {
-    const res = await fetch(`${API_BASE}/chemistry/3d`, {
+    await ensureAuthToken();
+    const res = await fetchJson(`${API_BASE}/chemistry/3d`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ smiles: promptOrSmiles }),
@@ -316,7 +492,8 @@ export async function fetchChemistry3D(promptOrSmiles: string): Promise<Mol3DCoo
 
 export async function fetchChemistryProperties(promptOrSmiles: string): Promise<MolecularProperties | null> {
   try {
-    const res = await fetch(`${API_BASE}/chemistry/properties`, {
+    await ensureAuthToken();
+    const res = await fetchJson(`${API_BASE}/chemistry/properties`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ smiles: promptOrSmiles }),
@@ -330,7 +507,8 @@ export async function fetchChemistryProperties(promptOrSmiles: string): Promise<
 
 export async function fetchQuiz(workspaceId: string, topic: string, numQuestions = 3): Promise<QuizResponse | null> {
   try {
-    const res = await fetch(`${API_BASE}/workspaces/${workspaceId}/quizzes`, {
+    await ensureAuthToken();
+    const res = await fetchJson(`${API_BASE}/workspaces/${workspaceId}/quizzes`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ topic, num_questions: numQuestions }),
@@ -368,7 +546,8 @@ export async function fetchQuiz(workspaceId: string, topic: string, numQuestions
 
 export async function fetchMultiDocAnalysis(workspaceId: string, queryText: string, documentIds: string[]): Promise<MultiDocResponse | null> {
   try {
-    const res = await fetch(`${API_BASE}/workspaces/${workspaceId}/reasoning/multi-doc`, {
+    await ensureAuthToken();
+    const res = await fetchJson(`${API_BASE}/workspaces/${workspaceId}/reasoning/multi-doc`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ query_text: queryText, document_ids: documentIds }),

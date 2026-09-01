@@ -361,14 +361,16 @@ chemmind/
 │   ├── types/
 │   └── tests/
 │
-├── backend/
-│   ├── app/
-│   │   ├── api/
-│   │   ├── core/
+├── backend_rust/
+│   ├── src/
+│   │   ├── api/v1/
 │   │   ├── models/
-│   │   ├── schemas/
 │   │   ├── services/
-│   │   └── main.py
+│   │   ├── middleware/
+│   │   ├── error/
+│   │   ├── auth/
+│   │   └── main.rs
+│   ├── migrations/
 │   └── tests/
 │
 ├── ai/
@@ -459,10 +461,9 @@ Frontend must not implement RAG business logic.
 Recommended stack:
 
 ```text
-Python
-FastAPI
-Pydantic
-SQLAlchemy
+Rust
+Axum
+SQLx
 PostgreSQL
 Redis
 SSE/WebSockets
@@ -591,7 +592,7 @@ A new developer should eventually be able to clone the repository and run the co
                               HTTPS / SSE
                                     │
                          ┌──────────▼───────────┐
-                         │      FastAPI         │
+                         │       Axum / Rust     │
                          │     API Gateway      │
                          └──────────┬───────────┘
                                     │
@@ -1491,7 +1492,7 @@ molecule metadata
 Implement:
 
 ```text
-FastAPI
+Axum / Rust
 configuration
 logging
 error handling

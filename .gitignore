@@ -18,7 +18,16 @@ htmlcov/
 
 # File Uploads & Local Storage
 uploads/
-backend/uploads/
+backend_rust/uploads/
+
+# Node / Next.js
+node_modules/
+.next/
+out/
+npm-debug.log*
+
+# Rust
+backend_rust/target/
 
 # IDEs & Editors
 .vscode/

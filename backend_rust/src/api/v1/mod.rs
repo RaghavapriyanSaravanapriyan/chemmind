@@ -5,6 +5,9 @@ mod conversations;
 mod chat;
 mod usage;
 mod health;
+mod chemistry;
+mod quizzes;
+mod reasoning;
 
 pub use auth::router as auth_router;
 pub use workspaces::router as workspaces_router;
@@ -13,6 +16,9 @@ pub use conversations::router as conversations_router;
 pub use chat::router as chat_router;
 pub use usage::router as usage_router;
 pub use health::router as health_router;
+pub use chemistry::router as chemistry_router;
+pub use quizzes::router as quizzes_router;
+pub use reasoning::router as reasoning_router;
 
 use axum::Router;
 
@@ -25,4 +31,7 @@ pub fn api_router() -> Router {
         .merge(chat_router())
         .merge(usage_router())
         .merge(health_router())
+        .merge(chemistry_router())
+        .merge(quizzes_router())
+        .merge(reasoning_router())
 }

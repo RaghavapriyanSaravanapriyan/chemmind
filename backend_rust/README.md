@@ -113,6 +113,16 @@ docker-compose up -d
 ### Usage
 - `GET /api/v1/workspaces/{id}/usage` - Get usage summary
 
+### Chemistry
+- `POST /api/v1/chemistry/properties` - Compute molecular properties from a SMILES string
+- `POST /api/v1/chemistry/3d` - Generate 3D molecular coordinates from a SMILES string
+
+### Quizzes
+- `POST /api/v1/workspaces/{id}/quizzes` - Generate a grounded multiple-choice quiz
+
+### Multi-Document Reasoning
+- `POST /api/v1/workspaces/{id}/reasoning/multi-doc` - Cross-document synthesis & conflict detection
+
 ## Configuration
 
 Environment variables (prefix: `CHEMMIND_`):

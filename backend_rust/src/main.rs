@@ -8,6 +8,7 @@ mod error;
 mod middleware;
 
 use axum::{
+    extract::{FromRef, State},
     middleware,
     routing::get,
     Router,
@@ -28,6 +29,30 @@ pub struct AppState {
     pub pool: PgPool,
     pub settings: Arc<Settings>,
     pub ai_gateway: AIGateway,
+}
+
+impl FromRef<AppState> for PgPool {
+    fn from_ref(state: &AppState) -> Self {
+        state.pool.clone()
+    }
+}
+
+impl FromRef<AppState> for Arc<Settings> {
+    fn from_ref(state: &AppState) -> Self {
+        state.settings.clone()
+    }
+}
+
+impl FromRef<AppState> for Settings {
+    fn from_ref(state: &AppState) -> Self {
+        (*state.settings).clone()
+    }
+}
+
+impl FromRef<AppState> for AIGateway {
+    fn from_ref(state: &AppState) -> Self {
+        state.ai_gateway.clone()
+    }
 }
 
 pub fn create_app(state: AppState) -> Router {
