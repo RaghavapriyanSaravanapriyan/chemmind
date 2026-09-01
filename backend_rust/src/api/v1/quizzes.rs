@@ -46,9 +46,9 @@ pub struct QuizOption {
     pub is_correct: bool,
 }
 
-pub fn router() -> Router {
+pub fn router() -> Router<crate::AppState> {
     Router::new().route(
-        "/{workspace_id}/quizzes",
+        "/:workspace_id/quizzes",
         post(generate_quiz),
     )
 }

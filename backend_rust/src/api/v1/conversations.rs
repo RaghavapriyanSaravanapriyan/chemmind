@@ -5,10 +5,9 @@ use axum::{
 };
 use sqlx::PgPool;
 use uuid::Uuid;
-use crate::config::Settings;
 use crate::error::{AppError, AppResult};
 use crate::middleware::AuthUser;
-use crate::models::conversation::{Conversation, Message, Citation, CreateConversation, CreateMessage, ConversationResponse, MessageResponse, CitationResponse};
+use crate::models::conversation::{Conversation, Message, Citation, CreateConversation, CreateMessage, ConversationResponse, MessageResponse};
 
 async fn get_conversation_with_permission(
     pool: &PgPool,
@@ -31,13 +30,13 @@ async fn get_conversation_with_permission(
     Ok((conversation, workspace.role))
 }
 
-pub fn router() -> Router {
+pub fn router() -> Router<crate::AppState> {
     Router::new()
-        .route("/{workspace_id}/conversations", post(create_conversation))
-        .route("/{workspace_id}/conversations", get(list_conversations))
-        .route("/{workspace_id}/conversations/{conversation_id}", get(get_conversation))
-        .route("/{workspace_id}/conversations/{conversation_id}/messages", post(add_message))
-        .route("/{workspace_id}/conversations/{conversation_id}", delete(delete_conversation))
+        .route("/:workspace_id/conversations", post(create_conversation))
+        .route("/:workspace_id/conversations", get(list_conversations))
+        .route("/:workspace_id/conversations/:conversation_id", get(get_conversation))
+        .route("/:workspace_id/conversations/:conversation_id/messages", post(add_message))
+        .route("/:workspace_id/conversations/:conversation_id", delete(delete_conversation))
 }
 
 async fn create_conversation(

@@ -1,22 +1,37 @@
 use axum::{
-    extract::{Request, State},
-    http::{HeaderMap, StatusCode},
+    extract::{FromRequestParts, Request, State},
+    http::{HeaderMap, request::Parts},
     middleware::Next,
     response::Response,
 };
+use async_trait::async_trait;
 use std::sync::Arc;
 use uuid::Uuid;
-use crate::auth::{decode_access_token, Claims};
+use crate::auth::decode_access_token;
 use crate::config::Settings;
 use crate::db::PgPool;
 use crate::error::AppError;
 use crate::models::user::User;
 
+#[derive(Clone)]
 pub struct AuthUser(pub User);
 
 impl AuthUser {
     pub fn id(&self) -> Uuid {
         self.0.id
+    }
+}
+
+#[async_trait]
+impl<S: Send + Sync> FromRequestParts<S> for AuthUser {
+    type Rejection = AppError;
+
+    async fn from_request_parts(parts: &mut Parts, _state: &S) -> Result<Self, Self::Rejection> {
+        parts
+            .extensions
+            .get::<AuthUser>()
+            .cloned()
+            .ok_or_else(|| AppError::Auth("Not authenticated".to_string()))
     }
 }
 

@@ -6,14 +6,14 @@ use axum::{
 use sqlx::PgPool;
 use uuid::Uuid;
 use crate::config::Settings;
-use crate::error::{AppError, AppResult};
+use crate::error::AppResult;
 use crate::middleware::AuthUser;
 use crate::models::usage::WorkspaceUsageSummary;
 use crate::services::usage::UsageService;
 
-pub fn router() -> Router {
+pub fn router() -> Router<crate::AppState> {
     Router::new()
-        .route("/{workspace_id}/usage", get(get_workspace_usage))
+        .route("/:workspace_id/usage", get(get_workspace_usage))
 }
 
 async fn get_workspace_usage(

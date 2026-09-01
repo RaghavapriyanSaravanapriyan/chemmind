@@ -1,7 +1,9 @@
-use sqlx::{postgres::PgPoolOptions, PgPool};
+use sqlx::postgres::PgPoolOptions;
 use std::time::Duration;
 use crate::config::Settings;
 use crate::error::AppResult;
+
+pub use sqlx::PgPool;
 
 pub async fn create_pool(settings: &Settings) -> AppResult<PgPool> {
     let pool = PgPoolOptions::new()

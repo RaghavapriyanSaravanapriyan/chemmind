@@ -9,7 +9,7 @@ use tower::ServiceExt;
 use uuid::Uuid;
 
 async fn create_test_app(pool: PgPool) -> Router {
-    use chemmind_backend::{create_pool, AppState, Settings, services::ai_gateway::AIGateway};
+    use chemmind_backend::{AppState, config::Settings, services::ai_gateway::AIGateway};
     use std::sync::Arc;
 
     let settings = Arc::new(Settings {
@@ -29,7 +29,7 @@ async fn create_test_app(pool: PgPool) -> Router {
     chemmind_backend::create_app(state)
 }
 
-#[sqlx::test(migrations = "../migrations")]
+#[sqlx::test(migrations = "./migrations")]
 async fn test_health_endpoint(pool: PgPool) {
     let app = create_test_app(pool).await;
     
@@ -41,7 +41,7 @@ async fn test_health_endpoint(pool: PgPool) {
     assert_eq!(response.status(), StatusCode::OK);
 }
 
-#[sqlx::test(migrations = "../migrations")]
+#[sqlx::test(migrations = "./migrations")]
 async fn test_user_registration_and_login(pool: PgPool) {
     let app = create_test_app(pool).await;
     
@@ -88,7 +88,7 @@ async fn test_user_registration_and_login(pool: PgPool) {
     assert_eq!(response.status(), StatusCode::OK);
 }
 
-#[sqlx::test(migrations = "../migrations")]
+#[sqlx::test(migrations = "./migrations")]
 async fn test_workspace_crud(pool: PgPool) {
     let app = create_test_app(pool).await;
     

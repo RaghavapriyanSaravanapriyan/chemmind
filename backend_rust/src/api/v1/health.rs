@@ -16,7 +16,7 @@ pub struct HealthResponse {
     pub database: String,
 }
 
-pub fn router() -> Router {
+pub fn router() -> Router<crate::AppState> {
     Router::new()
         .route("/health", get(health_check))
 }

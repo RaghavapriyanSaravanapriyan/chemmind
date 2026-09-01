@@ -47,9 +47,9 @@ pub struct Mol3DCoordinates {
 }
 
 #[derive(Debug, Clone, PartialEq)]
-struct ParsedAtom {
-    symbol: String,
-    count: u32,
+pub struct ParsedAtom {
+    pub symbol: String,
+    pub count: u32,
 }
 
 fn atomic_weight(symbol: &str) -> Option<f64> {

@@ -7,11 +7,11 @@ license = "MIT"
 
 [dependencies]
 # Web framework
-axum = { version = "0.7", features = ["ws", "extract-multipart"] }
+axum = { version = "0.7", features = ["ws", "multipart"] }
 axum-extra = { version = "0.9", features = ["multipart"] }
 tokio = { version = "1.38", features = ["full", "macros", "rt-multi-thread"] }
 tower = { version = "0.4", features = ["util"] }
-tower-http = { version = "0.6", features = ["cors", "trace", "normalize-path", "services", "compression"] }
+tower-http = { version = "0.6", features = ["cors", "trace", "normalize-path", "compression-gzip"] }
 
 # Serialization
 serde = { version = "1.0", features = ["derive"] }
@@ -19,16 +19,16 @@ serde_json = "1.0"
 serde_with = "3.5"
 
 # Database
-sqlx = { version = "0.8", features = ["runtime-tokio-rustls", "postgres", "uuid", "chrono", "json", "offline", "migrate"] }
+sqlx = { version = "0.8", features = ["runtime-tokio-rustls", "postgres", "uuid", "chrono", "json", "macros", "migrate"] }
 sqlx-postgres = "0.8"
 
 # Authentication
 jsonwebtoken = "9.2"
 bcrypt = "0.15"
-uuid = { version = "1.8", features = ["v4", "serde", "sqlx"] }
+uuid = { version = "1.8", features = ["v4", "serde"] }
 
 # Configuration
-config = { version = "0.14", features = ["env"] }
+config = { version = "0.14", features = ["ini"] }
 dotenvy = "0.15"
 
 # Validation
@@ -44,7 +44,7 @@ tracing-subscriber = { version = "0.3", features = ["env-filter", "json", "ansi"
 tracing-appender = "0.2"
 
 # Utilities
-chrono = { version = "0.4", features = ["serde", "tz"] }
+chrono = { version = "0.4", features = ["serde"] }
 bytes = "1.5"
 futures = "0.3"
 mime = "0.3"
@@ -55,15 +55,13 @@ hex = "0.4"
 
 # File handling
 tokio-util = { version = "0.7", features = ["io", "compat", "codec"] }
-tokio-fs = "1.0"
 
 # AI/HTTP client
 reqwest = { version = "0.12", features = ["json", "stream", "rustls-tls"] }
 
-# Testing
-#[cfg(test)]
-#[dev-dependencies]
-testcontainers = { version = "0.17", features = ["postgres"] }
+[dev-dependencies]
+tower = { version = "0.4", features = ["util"] }
+axum = { version = "0.7", features = ["ws", "multipart"] }
 
 [build-dependencies]
 sqlx = { version = "0.8", features = ["postgres", "migrate"] }

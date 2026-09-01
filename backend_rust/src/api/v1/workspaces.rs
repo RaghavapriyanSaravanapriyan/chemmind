@@ -3,7 +3,7 @@ use axum::{
     routing::{delete, get, post, put},
     Json, Router,
 };
-use serde::{Deserialize, Serialize};
+use serde::Serialize;
 use sqlx::PgPool;
 use uuid::Uuid;
 use crate::config::Settings;
@@ -12,9 +12,9 @@ use crate::middleware::AuthUser;
 use crate::models::workspace::{AddWorkspaceMember, CreateWorkspace, UpdateWorkspace, Workspace, WorkspaceMember, WorkspaceMemberResponse, WorkspaceResponse};
 
 #[derive(Serialize)]
-struct WorkspaceWithRole {
-    workspace: Workspace,
-    role: String,
+pub(crate) struct WorkspaceWithRole {
+    pub(crate) workspace: Workspace,
+    pub(crate) role: String,
 }
 
 pub(crate) async fn get_workspace_with_role(
@@ -51,22 +51,22 @@ pub(crate) async fn get_workspace_with_role(
     Ok(WorkspaceWithRole { workspace, role })
 }
 
-pub fn router() -> Router {
+pub fn router() -> Router<crate::AppState> {
     Router::new()
         .route("/", post(create_workspace))
         .route("/", get(list_workspaces))
-        .route("/{workspace_id}", get(get_workspace))
-        .route("/{workspace_id}", put(update_workspace))
-        .route("/{workspace_id}", delete(delete_workspace))
-        .route("/{workspace_id}/members", post(add_workspace_member))
+        .route("/:workspace_id", get(get_workspace))
+        .route("/:workspace_id", put(update_workspace))
+        .route("/:workspace_id", delete(delete_workspace))
+        .route("/:workspace_id/members", post(add_workspace_member))
 }
 
 async fn create_workspace(
     State(pool): State<PgPool>,
-    State(settings): State<Settings>,
+    State(_settings): State<Settings>,
     auth_user: AuthUser,
     Json(payload): Json<CreateWorkspace>,
-) -> AppResult<Json<WorkspaceResponse>> {
+) -> AppResult<(axum::http::StatusCode, Json<WorkspaceResponse>)> {
     let workspace = sqlx::query_as!(
         Workspace,
         r#"
@@ -90,7 +90,7 @@ async fn create_workspace(
     .execute(&pool)
     .await?;
 
-    Ok(Json(workspace.into()))
+    Ok((axum::http::StatusCode::CREATED, Json(workspace.into())))
 }
 
 async fn list_workspaces(

@@ -10,7 +10,7 @@ pub struct ChemistryRequest {
     pub prompt: Option<String>,
 }
 
-pub fn router() -> Router {
+pub fn router() -> Router<crate::AppState> {
     Router::new()
         .route("/chemistry/properties", post(chemistry_properties))
         .route("/chemistry/3d", post(chemistry_3d))

@@ -46,9 +46,9 @@ pub struct Discrepancy {
     pub nature_of_conflict: String,
 }
 
-pub fn router() -> Router {
+pub fn router() -> Router<crate::AppState> {
     Router::new().route(
-        "/{workspace_id}/reasoning/multi-doc",
+        "/:workspace_id/reasoning/multi-doc",
         post(multi_doc_reasoning),
     )
 }

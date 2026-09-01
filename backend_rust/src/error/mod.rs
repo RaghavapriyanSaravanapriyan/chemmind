@@ -4,7 +4,6 @@ use axum::{
     Json,
 };
 use serde::Serialize;
-use serde_json::json;
 use thiserror::Error;
 use validator::ValidationErrors;
 
@@ -12,6 +11,9 @@ use validator::ValidationErrors;
 pub enum AppError {
     #[error("Database error: {0}")]
     Database(#[from] sqlx::Error),
+
+    #[error("Database migration error: {0}")]
+    Migrate(#[from] sqlx::migrate::MigrateError),
 
     #[error("Authentication error: {0}")]
     Auth(String),
@@ -83,6 +85,10 @@ impl IntoResponse for AppError {
                 tracing::error!("Database error: {}", e);
                 (StatusCode::INTERNAL_SERVER_ERROR, "DATABASE_ERROR", "A database error occurred")
             }
+            AppError::Migrate(e) => {
+                tracing::error!("Database migration error: {}", e);
+                (StatusCode::INTERNAL_SERVER_ERROR, "DATABASE_MIGRATION_ERROR", "A database migration error occurred")
+            }
             AppError::Auth(msg) => (StatusCode::UNAUTHORIZED, "UNAUTHORIZED", msg.as_str()),
             AppError::Forbidden(msg) => (StatusCode::FORBIDDEN, "FORBIDDEN", msg.as_str()),
             AppError::NotFound(msg) => (StatusCode::NOT_FOUND, "NOT_FOUND", msg.as_str()),
@@ -129,12 +135,12 @@ impl IntoResponse for AppError {
             }
         };
 
-        let body = Json(json!({
-            "error": {
-                "code": code,
-                "message": message
-            }
-        }));
+        let body = Json(ErrorResponse {
+            error: ErrorDetail {
+                code: code.to_string(),
+                message: message.to_string(),
+            },
+        });
 
         (status, body).into_response()
     }

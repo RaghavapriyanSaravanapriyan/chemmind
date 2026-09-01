@@ -1,10 +1,8 @@
 use axum::{
     extract::State,
-    routing::{get, post},
-    Json, Router,
+    Json,
 };
 use serde::{Deserialize, Serialize};
-use uuid::Uuid;
 use crate::auth::{create_access_token, hash_password, verify_password};
 use crate::config::Settings;
 use crate::db::PgPool;
@@ -24,18 +22,11 @@ pub struct TokenResponse {
     pub token_type: String,
 }
 
-pub fn router() -> Router {
-    Router::new()
-        .route("/register", post(register_user))
-        .route("/login", post(login))
-        .route("/me", get(get_me))
-}
-
-async fn register_user(
+pub(crate) async fn register_user(
     State(pool): State<PgPool>,
-    State(settings): State<Settings>,
+    State(_settings): State<Settings>,
     Json(payload): Json<CreateUser>,
-) -> AppResult<Json<UserResponse>> {
+) -> AppResult<(axum::http::StatusCode, Json<UserResponse>)> {
     // Check if user exists
     let existing = sqlx::query_as!(
         User,
@@ -65,10 +56,10 @@ async fn register_user(
     .fetch_one(&pool)
     .await?;
 
-    Ok(Json(user.into()))
+    Ok((axum::http::StatusCode::CREATED, Json(user.into())))
 }
 
-async fn login(
+pub(crate) async fn login(
     State(pool): State<PgPool>,
     State(settings): State<Settings>,
     Json(payload): Json<LoginRequest>,
@@ -97,7 +88,7 @@ async fn login(
     }))
 }
 
-async fn get_me(
+pub(crate) async fn get_me(
     auth_user: AuthUser,
 ) -> AppResult<Json<UserResponse>> {
     Ok(Json(auth_user.0.into()))

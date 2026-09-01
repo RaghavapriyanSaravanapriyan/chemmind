@@ -41,6 +41,8 @@ pub fn create_access_token(subject: Uuid, settings: &Settings) -> AppResult<Stri
 pub fn decode_access_token(token: &str, settings: &Settings) -> AppResult<TokenData<Claims>> {
     let mut validation = Validation::new(Algorithm::HS256);
     validation.validate_exp = true;
+    validation.leeway = 0;
+    validation.required_spec_claims = ["exp", "iat"].into_iter().map(|s| s.to_string()).collect();
 
     decode::<Claims>(
         token,

@@ -48,6 +48,31 @@ fn default_role() -> String {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct WorkspaceResponse {
+    pub id: Uuid,
+    pub name: String,
+    pub description: Option<String>,
+    pub owner_id: Uuid,
+    pub is_archived: bool,
+    pub created_at: DateTime<Utc>,
+    pub updated_at: DateTime<Utc>,
+}
+
+impl From<Workspace> for WorkspaceResponse {
+    fn from(ws: Workspace) -> Self {
+        Self {
+            id: ws.id,
+            name: ws.name,
+            description: ws.description,
+            owner_id: ws.owner_id,
+            is_archived: ws.is_archived,
+            created_at: ws.created_at,
+            updated_at: ws.updated_at,
+        }
+    }
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct WorkspaceMemberResponse {
     pub id: Uuid,
     pub workspace_id: Uuid,

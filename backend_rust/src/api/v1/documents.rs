@@ -3,22 +3,21 @@ use axum::{
     routing::{delete, get, post},
     Json, Router,
 };
-use futures::StreamExt;
 use sqlx::PgPool;
 use uuid::Uuid;
 use crate::config::Settings;
 use crate::error::{AppError, AppResult};
 use crate::middleware::AuthUser;
-use crate::models::document::{Document, DocumentMetadata, DocumentResponse, DocumentMetadataResponse};
+use crate::models::document::{Document, DocumentMetadata, DocumentResponse};
 use crate::services::{storage::StorageService, usage::UsageService};
 use tokio::io::AsyncWriteExt;
 
-pub fn router() -> Router {
+pub fn router() -> Router<crate::AppState> {
     Router::new()
-        .route("/{workspace_id}/documents", post(upload_document))
-        .route("/{workspace_id}/documents", get(list_documents))
-        .route("/{workspace_id}/documents/{document_id}", get(get_document))
-        .route("/{workspace_id}/documents/{document_id}", delete(delete_document))
+        .route("/:workspace_id/documents", post(upload_document))
+        .route("/:workspace_id/documents", get(list_documents))
+        .route("/:workspace_id/documents/:document_id", get(get_document))
+        .route("/:workspace_id/documents/:document_id", delete(delete_document))
 }
 
 async fn upload_document(
