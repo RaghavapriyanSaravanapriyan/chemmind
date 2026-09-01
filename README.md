@@ -1,22 +1,14 @@
 <div align="center">
 
-<<<<<<< HEAD
-```
-██████╗██╗  ██╗███████╗███╗   ███╗███╗   ███╗██╗███╗   ██╗██████╗ 
-██╔════╝██║  ██║██╔════╝████╗ ████║████╗ ████║██║████╗  ██║██╔══██╗
-██║     ███████║█████╗  ██╔████╔██║██╔████╔██║██║██╔██╗ ██║██║  ██║
-██║     ██╔══██║██╔══╝  ██║╚██╔╝██║██║╚██╔╝██║██║██║╚██╗██║██║  ██║
-╚██████╗██║  ██║███████╗██║ ╚═╝ ██║██║ ╚═╝ ██║██║██║ ╚████║██████╔╝
- ╚═════╝╚═╝  ╚═╝╚══════╝╚═╝     ╚═╝╚═╝     ╚═╝╚═╝╚═╝  ╚═══╝╚═════╝
-```
+<img width="1252" height="285" alt="ChemMind banner" src="https://github.com/user-attachments/assets/9d7618f5-bd4e-4773-bf2d-2465d0e9fd2b" />
 
-Open Course — Chemistry Research Assignment
+**Open Course — Chemistry Research Assignment**
 
 An AI-powered chemistry research workspace for literature discovery, research-paper analysis, citation tracking, 3D molecular modelling, and chemistry-focused information retrieval — combining retrieval-augmented generation with deterministic chemistry tools.
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 [![Rust](https://img.shields.io/badge/Rust-2021-orange.svg)](backend_rust/)
-[![Next.js](https://img.shields.io/badge/Next.js-16-black.svg)](frontend/)
+[![Next.js](https://img.shields.io/badge/Next.js-16-blue.svg)](frontend/)
 [![Python](https://img.shields.io/badge/Python-3.11+-green.svg)](ai/)
 
 </div>
@@ -41,44 +33,6 @@ An AI-powered chemistry research workspace for literature discovery, research-pa
 ## Overview
 
 ChemMind is a unified workspace where researchers, chemists, and students can discover literature, upload research papers, analyze them with natural language, receive grounded answers with precise citations, visualize molecular structures in 3D, and generate assessments — all powered by local or cloud-hosted LLMs.
-=======
-<img width="1252" height="285" alt="image" src="https://github.com/user-attachments/assets/9d7618f5-bd4e-4773-bf2d-2465d0e9fd2b" />
-
-
-
-
-**Open Course — Chemistry Research Assignment**
-
-An AI-powered chemistry research workspace for literature discovery, research-paper analysis, citation tracking, 3D molecular modelling, and chemistry-focused information retrieval — combining retrieval-augmented generation with deterministic chemistry tools.
-
-[![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
-[![Rust](https://img.shields.io/badge/Rust-2021-orange.svg)](backend_rust/)
-[![Next.js](https://img.shields.io/badge/Next.js-16-blue.svg)](frontend/)
-[![Python](https://img.shields.io/badge/Python-3.11+-green.svg)](ai/)
-
-</div>
-
----
-                                                                   
-## Table of Contents
-
-- [Overview](#overview)
-- [Key Features](#key-features)
-- [Architecture](#architecture)
-- [Technology Stack](#technology-stack)
-- [Getting Started](#getting-started)
-- [Configuration](#configuration)
-- [Testing](#testing)
-- [Project Structure](#project-structure)
-- [Contributing](#contributing)
-- [License](#license)
-
----
-
-## Overview
-
-ChemMind is a unified workspace where researchers, chemists, and students can upload scientific papers, query them with natural language, receive grounded answers with precise citations, visualize molecular structures in 3D, and generate assessments — all powered by local or cloud-hosted LLMs.
->>>>>>> 9c4dde660ebab8c4caad405e2f97e926ce9fd98b
 
 ```text
 ┌──────────────────┬────────────────────────────────────┬──────────────────────┐
@@ -293,17 +247,17 @@ chemmind/
 │
 ├── ai/                        # Python AI & RAG subsystem
 │   ├── agentic/               #   Query routing & agent logic
-│   ├── chunking/              #   Document chunking (LaTeX/Chem)
-│   ├── chemistry/             #   RDKit molecular engine
-│   ├── citations/             #   Citation resolution & linking
-│   ├── embeddings/            #   Embedding pipeline
-│   ├── generation/            #   RAG service & LLM gateway
-│   ├── prompts/               #   Prompt templates
-│   ├── providers/             #   LLM & embedding providers
-│   ├── quizzes/               #   Quiz generation engine
-│   ├── retrieval/             #   Hybrid retrieval engine
-│   ├── reranking/             #   Result reranking
-│   ├── vector_store/          #   Qdrant vector store interface
+│   ├── chunking/               #   Document chunking (LaTeX/Chem)
+│   ├── chemistry/              #   RDKit molecular engine
+│   ├── citations/               #   Citation resolution & linking
+│   ├── embeddings/              #   Embedding pipeline
+│   ├── generation/              #   RAG service & LLM gateway
+│   ├── prompts/                 #   Prompt templates
+│   ├── providers/                #   LLM & embedding providers
+│   ├── quizzes/                  #   Quiz generation engine
+│   ├── retrieval/                #   Hybrid retrieval engine
+│   ├── reranking/                #   Result reranking
+│   ├── vector_store/             #   Qdrant vector store interface
 │   └── config.py
 │
 ├── tests/                     # Cross-cutting test suite
@@ -344,11 +298,8 @@ Branch Assignments:
 
 ---
 
-<<<<<<< HEAD
 ## License
 
 This project is licensed under the [MIT License](LICENSE).
 
 Copyright (c) 2026 Raghavapriyan Saravanapriyan
-=======
->>>>>>> 9c4dde660ebab8c4caad405e2f97e926ce9fd98b
