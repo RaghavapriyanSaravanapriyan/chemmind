@@ -133,9 +133,34 @@ class AgenticRAGEngine:
             workspace_id=request.workspace_id,
             collection_name=request.collection_name,
             document_ids=request.document_ids,
-            top_k=request.top_k,
+            top_k=request.top_k * 2 if self.reranker else request.top_k,
             min_score=request.min_score,
         )
+
+        # Parity with execute(): rerank when a reranker is configured.
+        if self.reranker and retrieved_chunks:
+            rerank_req = RerankRequest(
+                query_text=request.query_text,
+                candidate_chunks=retrieved_chunks,
+                top_k=request.top_k
+            )
+            rerank_resp = await self.reranker.rerank(rerank_req)
+            retrieved_chunks = [
+                RetrievedChunk(
+                    chunk_id=r.chunk_id,
+                    score=r.rerank_score,
+                    text=r.text,
+                    document_id=r.document_id,
+                    workspace_id=r.workspace_id,
+                    page_number=r.page_number,
+                    page_start=r.page_start,
+                    page_end=r.page_end,
+                    section_title=r.section_title,
+                    chemical_entities=r.chemical_entities,
+                    chunk_type=r.chunk_type,
+                    payload=r.payload
+                ) for r in rerank_resp.results
+            ]
 
         decision: RoutingDecision = self.router.evaluate(
             query=request.query_text,

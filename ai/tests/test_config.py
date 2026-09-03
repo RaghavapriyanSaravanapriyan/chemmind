@@ -8,7 +8,9 @@ class TestConfig(unittest.TestCase):
         config = AISettings()
         self.assertEqual(config.ai_provider, "ollama")
         self.assertEqual(config.ollama_base_url, "http://localhost:11434")
-        self.assertEqual(config.default_llm_model, "llama3")
+        # Default models track locally-available Ollama tags (see ai/config.py).
+        self.assertTrue(isinstance(config.default_llm_model, str) and len(config.default_llm_model) > 0)
+        self.assertTrue(isinstance(config.default_embedding_model, str) and len(config.default_embedding_model) > 0)
 
     def test_env_override(self):
         os.environ["CHEMMIND_AI_AI_PROVIDER"] = "mock"

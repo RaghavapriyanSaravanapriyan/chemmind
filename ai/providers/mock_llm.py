@@ -1,5 +1,5 @@
 import asyncio
-from typing import AsyncGenerator
+from typing import AsyncGenerator, List, Dict, Any
 from ai.providers.base_llm import BaseLLMProvider
 from ai.schemas.llm import LLMRequest, LLMResponse, StreamChunk, TokenUsage
 
@@ -40,3 +40,9 @@ class MockLLMProvider(BaseLLMProvider):
                 is_final=is_last
             )
             await asyncio.sleep(0.01)
+
+    async def list_models(self) -> List[Dict[str, Any]]:
+        return [{"name": "mock-model", "model": "mock-model", "capabilities": ["completion"]}]
+
+    async def health_check(self) -> bool:
+        return True

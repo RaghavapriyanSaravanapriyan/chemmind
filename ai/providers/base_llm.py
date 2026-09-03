@@ -1,5 +1,5 @@
 from abc import ABC, abstractmethod
-from typing import AsyncGenerator
+from typing import AsyncGenerator, List, Dict, Any
 from ai.schemas.llm import LLMRequest, LLMResponse, StreamChunk
 
 class BaseLLMProvider(ABC):
@@ -20,3 +20,11 @@ class BaseLLMProvider(ABC):
     async def stream(self, request: LLMRequest) -> AsyncGenerator[StreamChunk, None]:
         """Executes a streaming completion request returning chunks as they arrive."""
         pass
+
+    async def list_models(self) -> List[Dict[str, Any]]:
+        """Lists available models. Returns [{'name': str, ...}]. Defaults to empty."""
+        return []
+
+    async def health_check(self) -> bool:
+        """Returns True if provider backend is reachable."""
+        return True

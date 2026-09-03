@@ -1,5 +1,6 @@
 import json
-from typing import AsyncGenerator, List, Optional
+import os
+from typing import AsyncGenerator, Any, Dict, List, Optional
 import httpx
 from ai.config import settings
 from ai.providers.base_embedding import BaseEmbeddingProvider
@@ -23,6 +24,23 @@ class OpenAILLMProvider(BaseLLMProvider):
     def provider_name(self) -> str:
         return "openai"
 
+    async def list_models(self):
+        # OpenAI-compatible /models listing when reachable, else known defaults.
+        url = f"{self.base_url}/models"
+        headers = {"Content-Type": "application/json"}
+        if self.api_key:
+            headers["Authorization"] = f"Bearer {self.api_key}"
+        try:
+            resp = await self.client.get(url, headers=headers)
+            resp.raise_for_status()
+            data = resp.json()
+            return [{"name": m.get("id", ""), "model": m.get("id", "")} for m in data.get("data", [])]
+        except Exception:
+            return [{"name": settings.openai_default_model, "model": settings.openai_default_model}]
+
+    async def health_check(self) -> bool:
+        return bool(self.api_key)
+
     async def generate(self, request: LLMRequest) -> LLMResponse:
         url = f"{self.base_url}/chat/completions"
         headers = {"Content-Type": "application/json"}
@@ -31,7 +49,7 @@ class OpenAILLMProvider(BaseLLMProvider):
 
         messages_payload = [{"role": msg.role.value, "content": msg.content} for msg in request.messages]
         payload = {
-            "model": request.model or "gpt-4o-mini",
+            "model": request.model or settings.openai_default_model,
             "messages": messages_payload,
             "temperature": request.temperature,
             "stream": False,
@@ -75,7 +93,7 @@ class OpenAILLMProvider(BaseLLMProvider):
 
         messages_payload = [{"role": msg.role.value, "content": msg.content} for msg in request.messages]
         payload = {
-            "model": request.model or "gpt-4o-mini",
+            "model": request.model or settings.openai_default_model,
             "messages": messages_payload,
             "temperature": request.temperature,
             "stream": True,
@@ -109,8 +127,6 @@ class OpenAILLMProvider(BaseLLMProvider):
             logger.error(f"OpenAI LLM streaming error: {str(e)}")
             raise
 
-import os
-
 class OpenAIEmbeddingProvider(BaseEmbeddingProvider):
     """
     OpenAI-Compatible Dense Vector Embedding Provider.
@@ -125,13 +141,19 @@ class OpenAIEmbeddingProvider(BaseEmbeddingProvider):
     def provider_name(self) -> str:
         return "openai"
 
+    async def list_models(self):
+        return [{"name": settings.openai_default_embedding_model, "model": settings.openai_default_embedding_model, "capabilities": ["embedding"]}]
+
+    async def health_check(self) -> bool:
+        return bool(self.api_key)
+
     async def embed(self, request: EmbeddingRequest) -> EmbeddingResponse:
         url = f"{self.base_url}/embeddings"
         headers = {"Content-Type": "application/json"}
         if self.api_key:
             headers["Authorization"] = f"Bearer {self.api_key}"
 
-        model_name = request.model or "text-embedding-3-small"
+        model_name = request.model or settings.openai_default_embedding_model
         payload = {
             "model": model_name,
             "input": request.input_texts,

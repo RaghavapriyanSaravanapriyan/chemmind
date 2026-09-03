@@ -40,9 +40,13 @@ pub struct Settings {
 
 impl Settings {
     pub fn new() -> Result<Self, ConfigError> {
+        // Load .env dotenv file if present (cp .env.example .env). The `config`
+        // crate's File source expects structured formats, so dotenv parsing is
+        // done explicitly via dotenvy before reading environment variables.
+        let _ = dotenvy::dotenv();
         let config = Config::builder()
             .add_source(File::with_name(".env").required(false))
-            .add_source(Environment::with_prefix("CHEMMIND"))
+            .add_source(Environment::with_prefix("CHEMMIND").separator("_"))
             .build()?;
 
         config.try_deserialize()
@@ -82,8 +86,8 @@ impl Default for Settings {
             default_workspace_ai_request_limit: 200,
             database_url: "postgresql://postgres:postgres_password@localhost:5432/chemmind_db".to_string(),
             ollama_base_url: "http://localhost:11434".to_string(),
-            default_llm_model: "llama3".to_string(),
-            default_embedding_model: "nomic-embed-text".to_string(),
+            default_llm_model: "qwen2.5:1.5b".to_string(),
+            default_embedding_model: "hf.co/CompendiumLabs/bge-base-en-v1.5-gguf:latest".to_string(),
             log_level: "INFO".to_string(),
         }
     }

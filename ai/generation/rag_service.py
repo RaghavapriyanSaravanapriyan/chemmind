@@ -1,4 +1,4 @@
-from typing import AsyncGenerator, Optional, List
+from typing import AsyncGenerator, Any, Dict, Optional, List
 from ai.agentic.agent import AgenticRAGEngine
 from ai.generation.gateway import LLMGateway, gateway as default_gateway
 from ai.reranking.base import BaseReranker
@@ -37,3 +37,13 @@ class RAGGenerationService:
         async for chunk_payload in self.agentic_engine.stream_execute(request):
             if chunk_payload.get("token"):
                 yield chunk_payload["token"]
+
+    async def stream_with_metadata(self, request: RAGRequest) -> AsyncGenerator[Dict[str, Any], None]:
+        """Streams token dicts plus a final metadata payload (citations, routing_mode, web_results).
+
+        Unlike stream() (which yields plain strings for backwards compatibility),
+        this preserves the final citations/routing metadata produced by the agent.
+        """
+        logger.info(f"RAG Generation Service streaming (with metadata) query: '{request.query_text[:50]}...'")
+        async for chunk_payload in self.agentic_engine.stream_execute(request):
+            yield chunk_payload

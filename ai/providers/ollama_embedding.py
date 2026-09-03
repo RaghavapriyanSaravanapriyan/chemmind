@@ -1,4 +1,4 @@
-from typing import List
+from typing import List, Dict, Any
 import httpx
 from ai.config import settings
 from ai.providers.base_embedding import BaseEmbeddingProvider
@@ -43,6 +43,38 @@ class OllamaEmbeddingProvider(BaseEmbeddingProvider):
             total_tokens=data.get("prompt_eval_count")
         )
 
+    async def list_models(self) -> List[Dict[str, Any]]:
+        """Lists embedding-capable models via Ollama /api/tags (filters capability 'embedding')."""
+        url = f"{self.base_url}/api/tags"
+        async with httpx.AsyncClient(timeout=self.timeout) as client:
+            try:
+                resp = await client.get(url)
+                resp.raise_for_status()
+                data = resp.json()
+                out: List[Dict[str, Any]] = []
+                for m in data.get("models", []):
+                    caps = m.get("capabilities", [])
+                    # Include all models; caller can filter. Mark embedding-capable.
+                    out.append({
+                        "name": m.get("name", ""),
+                        "model": m.get("model", m.get("name", "")),
+                        "size": m.get("size", 0),
+                        "capabilities": caps,
+                        "embedding_capable": "embedding" in caps,
+                        "details": m.get("details", {}),
+                    })
+                return out
+            except httpx.HTTPError as exc:
+                logger.error(f"Ollama embedding list_models failed: {exc}")
+                raise RuntimeError(f"Ollama embedding list_models error: {exc}") from exc
+
+    async def health_check(self) -> bool:
+        try:
+            await self.list_models()
+            return True
+        except Exception:
+            return False
+
 class MockEmbeddingProvider(BaseEmbeddingProvider):
     """Mock Embedding Provider for unit testing."""
 
@@ -67,3 +99,9 @@ class MockEmbeddingProvider(BaseEmbeddingProvider):
             model=model,
             total_tokens=len(request.input_texts) * 5
         )
+
+    async def list_models(self) -> List[Dict[str, Any]]:
+        return [{"name": "mock-embedding-model", "model": "mock-embedding-model", "capabilities": ["embedding"]}]
+
+    async def health_check(self) -> bool:
+        return True

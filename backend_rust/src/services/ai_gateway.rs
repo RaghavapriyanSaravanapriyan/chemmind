@@ -24,6 +24,10 @@ pub struct AIChatResponse {
     pub sender: String,
     pub content: String,
     pub citations: Vec<CitationResponse>,
+    /// True when Ollama was unreachable and the mock provider answered instead.
+    /// Backwards-compatible: defaults to false for old payloads.
+    #[serde(default)]
+    pub mock_fallback: bool,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -32,6 +36,9 @@ pub struct AIChatStreamChunk {
     pub finish_reason: Option<String>,
     pub citations: Option<Vec<CreateCitation>>,
     pub full_content: Option<String>,
+    /// Present on the final chunk: true when mock fallback was used.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub mock_fallback: Option<bool>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -59,7 +66,11 @@ struct OllamaOptions {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 struct OllamaChatResponse {
     model: String,
-    message: OllamaMessage,
+    // Ollama's final `{ "done": true }` frame carries no `message`; earlier
+    // code required it and silently dropped the done signal.
+    #[serde(default)]
+    message: Option<OllamaMessage>,
+    #[serde(default)]
     done: bool,
 }
 
@@ -72,6 +83,46 @@ struct OllamaEmbedRequest {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 struct OllamaEmbedResponse {
     embeddings: Vec<Vec<f32>>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct OllamaModelInfo {
+    pub name: String,
+    #[serde(default)]
+    pub model: String,
+    #[serde(default)]
+    pub size: u64,
+    #[serde(default)]
+    pub digest: String,
+    #[serde(default)]
+    pub details: serde_json::Value,
+    #[serde(default)]
+    pub capabilities: Vec<String>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+struct OllamaTagsResponse {
+    #[serde(default)]
+    models: Vec<OllamaModelInfo>,
+}
+
+/// Strips Markdown code fences robustly: handles ```json, ```, leading/trailing
+/// whitespace and newlines (previous version left trailing whitespace/```).
+fn strip_json_fences(content: &str) -> &str {
+    let mut s = content.trim();
+    if s.starts_with("```") {
+        // Drop opening fence line (``` or ```json).
+        if let Some(idx) = s.find('\n') {
+            s = s[idx + 1..].trim_start();
+        } else {
+            s = s.trim_start_matches('`').trim_start();
+        }
+    }
+    if s.ends_with("```") {
+        s = s.trim_end_matches('`').trim_end();
+        // Remove trailing "json" leftover edge case already handled above.
+    }
+    s.trim()
 }
 
 #[async_trait]
@@ -102,6 +153,18 @@ impl OllamaProvider {
         }
     }
 
+    pub fn base_url(&self) -> &str {
+        &self.base_url
+    }
+
+    pub fn default_llm_model(&self) -> &str {
+        &self.llm_model
+    }
+
+    pub fn default_embedding_model(&self) -> &str {
+        &self.embedding_model
+    }
+
     fn build_prompt(&self, request: &AIChatRequest) -> String {
         let context = request
             .grounded_context
@@ -126,9 +189,15 @@ impl OllamaProvider {
     }
 
     /// Sends a prompt to Ollama and parses the response as JSON.
+    /// Normalises the "ollama" provider keyword to the configured default so
+    /// quiz/reasoning callers behave like chat (which already normalises).
     async fn generate_json(&self, prompt: &str, model: Option<&str>) -> AppResult<serde_json::Value> {
+        let model_name = match model {
+            Some(m) if m != "ollama" && !m.trim().is_empty() => m.to_string(),
+            _ => self.llm_model.clone(),
+        };
         let ollama_request = OllamaChatRequest {
-            model: model.unwrap_or(&self.llm_model).to_string(),
+            model: model_name,
             messages: vec![OllamaMessage {
                 role: "user".to_string(),
                 content: prompt.to_string(),
@@ -153,11 +222,58 @@ impl OllamaProvider {
         }
 
         let ollama_response: OllamaChatResponse = response.json().await?;
-        let content = ollama_response.message.content;
-        let stripped = content.trim().trim_start_matches("```json").trim_end_matches("```");
+        let content = ollama_response.message.map(|m| m.content).unwrap_or_default();
+        let stripped = strip_json_fences(&content);
         serde_json::from_str(stripped).map_err(|_| {
             AppError::Internal("AI returned malformed JSON".to_string())
         })
+    }
+
+    /// Lists models installed in Ollama via GET /api/tags.
+    pub async fn list_models(&self) -> AppResult<Vec<OllamaModelInfo>> {
+        let response = self
+            .client
+            .get(format!("{}/api/tags", self.base_url))
+            .send()
+            .await?;
+        if !response.status().is_success() {
+            return Err(AppError::HttpClient(response.error_for_status().unwrap_err()));
+        }
+        let tags: OllamaTagsResponse = response.json().await?;
+        Ok(tags.models)
+    }
+
+    pub async fn ollama_healthy(&self) -> bool {
+        self.client
+            .get(format!("{}/api/tags", self.base_url))
+            .send()
+            .await
+            .map(|r| r.status().is_success())
+            .unwrap_or(false)
+    }
+
+    pub async fn embed_with_model(&self, texts: Vec<String>, model: Option<&str>) -> AppResult<Vec<Vec<f32>>> {
+        let request = OllamaEmbedRequest {
+            model: model
+                .filter(|m| !m.trim().is_empty())
+                .map(|m| m.to_string())
+                .unwrap_or_else(|| self.embedding_model.clone()),
+            input: texts,
+        };
+
+        let response = self
+            .client
+            .post(format!("{}/api/embed", self.base_url))
+            .json(&request)
+            .send()
+            .await?;
+
+        if !response.status().is_success() {
+            return Err(AppError::HttpClient(response.error_for_status().unwrap_err()));
+        }
+
+        let embed_response: OllamaEmbedResponse = response.json().await?;
+        Ok(embed_response.embeddings)
     }
 }
 
@@ -168,7 +284,7 @@ impl LLMProvider for OllamaProvider {
         // model_provider carries the Ollama model name from the frontend; the
         // literal provider keyword "ollama" means "use the configured default".
         let model = match request.model_provider.as_deref() {
-            Some(m) if m != "ollama" => m.to_string(),
+            Some(m) if m != "ollama" && !m.trim().is_empty() => m.to_string(),
             _ => self.llm_model.clone(),
         };
 
@@ -198,7 +314,7 @@ impl LLMProvider for OllamaProvider {
         }
 
         let ollama_response: OllamaChatResponse = response.json().await?;
-        let answer = ollama_response.message.content;
+        let answer = ollama_response.message.map(|m| m.content).unwrap_or_default();
 
         // Generate mock citations for now
         let citations = if let Some(doc_ids) = request.selected_document_ids {
@@ -219,7 +335,7 @@ impl LLMProvider for OllamaProvider {
     async fn stream(&self, request: AIChatRequest) -> AppResult<Vec<AIChatStreamChunk>> {
         let prompt = self.build_prompt(&request);
         let model = match request.model_provider.as_deref() {
-            Some(m) if m != "ollama" => m.to_string(),
+            Some(m) if m != "ollama" && !m.trim().is_empty() => m.to_string(),
             _ => self.llm_model.clone(),
         };
 
@@ -263,7 +379,7 @@ impl LLMProvider for OllamaProvider {
             }
             match serde_json::from_str::<OllamaChatResponse>(line) {
                 Ok(part) => {
-                    let token = part.message.content;
+                    let token = part.message.map(|m| m.content).unwrap_or_default();
                     if !token.is_empty() {
                         accumulated.push_str(&token);
                         chunks.push(AIChatStreamChunk {
@@ -271,6 +387,7 @@ impl LLMProvider for OllamaProvider {
                             finish_reason: None,
                             citations: None,
                             full_content: None,
+                            mock_fallback: None,
                         });
                     }
                     if part.done {
@@ -305,30 +422,14 @@ impl LLMProvider for OllamaProvider {
             finish_reason: Some("stop".to_string()),
             citations: Some(citations),
             full_content: Some(accumulated),
+            mock_fallback: Some(false),
         });
 
         Ok(chunks)
     }
 
     async fn embed(&self, texts: Vec<String>) -> AppResult<Vec<Vec<f32>>> {
-        let request = OllamaEmbedRequest {
-            model: self.embedding_model.clone(),
-            input: texts,
-        };
-
-        let response = self
-            .client
-            .post(format!("{}/api/embed", self.base_url))
-            .json(&request)
-            .send()
-            .await?;
-
-        if !response.status().is_success() {
-            return Err(AppError::HttpClient(response.error_for_status().unwrap_err()));
-        }
-
-        let embed_response: OllamaEmbedResponse = response.json().await?;
-        Ok(embed_response.embeddings)
+        self.embed_with_model(texts, None).await
     }
 }
 
@@ -377,6 +478,7 @@ impl LLMProvider for MockProvider {
                 finish_reason: None,
                 citations: None,
                 full_content: None,
+                mock_fallback: None,
             });
         }
 
@@ -385,6 +487,7 @@ impl LLMProvider for MockProvider {
             finish_reason: Some("stop".to_string()),
             citations: Some(citations),
             full_content: Some(accumulated),
+            mock_fallback: Some(true),
         });
 
         Ok(chunks)
@@ -413,21 +516,23 @@ impl AIGateway {
     pub async fn generate_rag_response(
         &self,
         request: AIChatRequest,
-    ) -> AppResult<(String, Vec<CreateCitation>)> {
+    ) -> AppResult<(String, Vec<CreateCitation>, bool)> {
         let provider_name = request.model_provider.as_deref().unwrap_or("ollama");
 
         // Treat any model name (e.g. "qwen2.5:1.5b", "llama3:latest") as an
         // Ollama request since Ollama is the local provider. Only the explicit
         // "mock" provider short-circuits to the canned responder.
         if provider_name == "mock" {
-            return self.mock.generate(request).await;
+            let (content, citations) = self.mock.generate(request).await?;
+            return Ok((content, citations, true));
         }
 
         match self.ollama.generate(request.clone()).await {
-            Ok(result) => Ok(result),
+            Ok((content, citations)) => Ok((content, citations, false)),
             Err(e) => {
                 tracing::warn!("Ollama unavailable, falling back to mock provider: {}", e);
-                self.mock.generate(request).await
+                let (content, citations) = self.mock.generate(request).await?;
+                Ok((content, citations, true))
             }
         }
     }
@@ -451,15 +556,29 @@ impl AIGateway {
         }
     }
 
+    pub fn ollama(&self) -> &OllamaProvider {
+        &self.ollama
+    }
+
     pub async fn embed(&self, texts: Vec<String>, provider: Option<&str>) -> AppResult<Vec<Vec<f32>>> {
+        let (vecs, _fallback) = self.embed_with_model(texts, provider, None).await?;
+        Ok(vecs)
+    }
+
+    pub async fn embed_with_model(
+        &self,
+        texts: Vec<String>,
+        provider: Option<&str>,
+        model: Option<&str>,
+    ) -> AppResult<(Vec<Vec<f32>>, bool)> {
         if provider == Some("mock") {
-            return self.mock.embed(texts).await;
+            return Ok((self.mock.embed(texts).await?, true));
         }
-        match self.ollama.embed(texts.clone()).await {
-            Ok(result) => Ok(result),
+        match self.ollama.embed_with_model(texts.clone(), model).await {
+            Ok(result) => Ok((result, false)),
             Err(e) => {
                 tracing::warn!("Ollama embedding unavailable, falling back to mock: {}", e);
-                self.mock.embed(texts).await
+                Ok((self.mock.embed(texts).await?, true))
             }
         }
     }

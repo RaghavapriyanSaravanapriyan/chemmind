@@ -1,15 +1,33 @@
 from typing import List, Optional
+import uuid
 from qdrant_client import AsyncQdrantClient, models
 from ai.config import settings
 from ai.schemas.vector import VectorPoint, VectorSearchResult
 from ai.vector_store.base import BaseVectorStore
 from ai.utils.logger import logger
 
+
+def _qdrant_point_id(chunk_id: str):
+    """Qdrant point IDs must be UUID or uint. Map arbitrary chunk_ids
+    deterministically to UUIDv5 so string IDs like 'c1' work."""
+    try:
+        return str(uuid.UUID(str(chunk_id)))
+    except (ValueError, AttributeError, TypeError):
+        pass
+    try:
+        # Unsigned int strings are valid as-is if they fit uint64.
+        iv = int(str(chunk_id))
+        if iv >= 0:
+            return iv
+    except (ValueError, TypeError):
+        pass
+    return str(uuid.uuid5(uuid.NAMESPACE_URL, f"chemmind:{chunk_id}"))
+
 class QdrantVectorStore(BaseVectorStore):
     """Concrete Qdrant Vector Store implementation via AsyncQdrantClient."""
 
     def __init__(self, host: Optional[str] = None, port: Optional[int] = None, url: Optional[str] = None):
-        target_url = url or settings.qdrant_url
+        target_url = url or getattr(settings, "qdrant_url", None)
         if target_url:
             self.client = AsyncQdrantClient(url=target_url)
         else:
@@ -41,13 +59,18 @@ class QdrantVectorStore(BaseVectorStore):
             return True
         logger.info(f"Upserting {len(points)} vector points into Qdrant collection '{collection_name}'")
         
-        q_points = [
-            models.PointStruct(
-                id=p.id,
-                vector=p.vector,
-                payload=p.payload
-            ) for p in points
-        ]
+        q_points = []
+        for p in points:
+            payload = dict(p.payload or {})
+            # Preserve original chunk_id for retrieval; Qdrant ID is derived.
+            payload.setdefault("chunk_id", p.id)
+            q_points.append(
+                models.PointStruct(
+                    id=_qdrant_point_id(p.id),
+                    vector=p.vector,
+                    payload=payload
+                )
+            )
         
         await self.client.upsert(
             collection_name=collection_name,
@@ -93,7 +116,7 @@ class QdrantVectorStore(BaseVectorStore):
         for point in results.points:
             payload = point.payload or {}
             res = VectorSearchResult(
-                chunk_id=str(point.id),
+                chunk_id=str(payload.get("chunk_id", point.id)),
                 score=float(point.score),
                 text=payload.get("text", ""),
                 workspace_id=payload.get("workspace_id", ""),

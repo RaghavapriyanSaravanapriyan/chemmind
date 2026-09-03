@@ -30,6 +30,7 @@ pub struct AppState {
     pub pool: crate::db::PgPool,
     pub settings: Arc<Settings>,
     pub ai_gateway: AIGateway,
+    pub api_keys: crate::services::api_keys::ApiKeyStore,
 }
 
 impl FromRef<AppState> for crate::db::PgPool {
@@ -56,21 +57,31 @@ impl FromRef<AppState> for AIGateway {
     }
 }
 
+impl FromRef<AppState> for crate::services::api_keys::ApiKeyStore {
+    fn from_ref(state: &AppState) -> Self {
+        state.api_keys.clone()
+    }
+}
+
 /// Builds the fully-wired Axum application. Auth middleware only guards
 /// protected endpoints; public routes (health, register, login) remain open so
 /// the frontend can bootstrap a session.
 pub fn create_app(state: AppState) -> Router {
     let settings = state.settings.clone();
 
+    let mut valid_origins = Vec::new();
+    for o in settings.backend_cors_origins.clone() {
+        match o.parse() {
+            Ok(v) => valid_origins.push(v),
+            Err(e) => tracing::warn!("Ignoring invalid CORS origin '{}': {}", o, e),
+        }
+    }
+    if valid_origins.is_empty() {
+        tracing::warn!("No valid CORS origins configured; defaulting to http://localhost:3000");
+        valid_origins.push("http://localhost:3000".parse().expect("default CORS origin"));
+    }
     let cors = CorsLayer::new()
-        .allow_origin(
-            settings
-                .backend_cors_origins
-                .clone()
-                .into_iter()
-                .map(|o| o.parse().unwrap())
-                .collect::<Vec<_>>(),
-        )
+        .allow_origin(valid_origins)
         .allow_credentials(true)
         .allow_methods([
             axum::http::Method::GET,

@@ -1,4 +1,4 @@
-from typing import AsyncGenerator, Dict, Optional
+from typing import AsyncGenerator, Any, Dict, List, Optional
 from ai.config import settings
 from ai.providers.base_llm import BaseLLMProvider
 from ai.providers.base_embedding import BaseEmbeddingProvider
@@ -103,6 +103,55 @@ class LLMGateway:
         """Generates embeddings using the configured embedding provider."""
         provider = self.get_embedding_provider(provider_name)
         return await provider.embed(request)
+
+    async def list_llm_models(self, provider_name: Optional[str] = None) -> List[Dict[str, Any]]:
+        """Lists LLM models for the requested (or active) provider."""
+        provider = self.get_llm_provider(provider_name)
+        try:
+            return await provider.list_models()
+        except Exception as e:
+            logger.error(f"list_llm_models failed for '{provider.provider_name}': {e}")
+            raise
+
+    async def list_embedding_models(self, provider_name: Optional[str] = None) -> List[Dict[str, Any]]:
+        """Lists embedding models for the requested (or active) embedding provider."""
+        provider = self.get_embedding_provider(provider_name)
+        try:
+            return await provider.list_models()
+        except Exception as e:
+            logger.error(f"list_embedding_models failed for '{provider.provider_name}': {e}")
+            raise
+
+    async def list_all_models(self) -> Dict[str, List[Dict[str, Any]]]:
+        """Best-effort listing across all registered providers (never raises)."""
+        out: Dict[str, List[Dict[str, Any]]] = {"llm": [], "embedding": []}
+        for name, prov in self._llm_providers.items():
+            try:
+                models = await prov.list_models()
+                for m in models:
+                    entry = dict(m)
+                    entry.setdefault("provider", name)
+                    out["llm"].append(entry)
+            except Exception:
+                continue
+        for name, prov in self._embedding_providers.items():
+            try:
+                models = await prov.list_models()
+                for m in models:
+                    entry = dict(m)
+                    entry.setdefault("provider", name)
+                    out["embedding"].append(entry)
+            except Exception:
+                continue
+        return out
+
+    def active_providers(self) -> Dict[str, str]:
+        return {
+            "llm_provider": self._active_llm_provider_name,
+            "embedding_provider": self._active_embedding_provider_name,
+            "default_llm_model": settings.default_llm_model,
+            "default_embedding_model": settings.default_embedding_model,
+        }
 
 gateway = LLMGateway()
 

@@ -61,7 +61,7 @@ pub fn router() -> Router<crate::AppState> {
         .route("/:workspace_id/members", post(add_workspace_member))
 }
 
-async fn create_workspace(
+pub(crate) async fn create_workspace(
     State(pool): State<PgPool>,
     State(_settings): State<Settings>,
     auth_user: AuthUser,
@@ -93,7 +93,7 @@ async fn create_workspace(
     Ok((axum::http::StatusCode::CREATED, Json(workspace.into())))
 }
 
-async fn list_workspaces(
+pub(crate) async fn list_workspaces(
     State(pool): State<PgPool>,
     auth_user: AuthUser,
 ) -> AppResult<Json<Vec<WorkspaceResponse>>> {

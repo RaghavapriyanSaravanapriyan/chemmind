@@ -8,6 +8,7 @@ pub mod health;
 mod chemistry;
 mod quizzes;
 mod reasoning;
+mod ai;
 
 pub use workspaces::router as workspaces_router;
 pub use documents::router as documents_router;
@@ -18,6 +19,7 @@ pub use health::router as health_router;
 pub use chemistry::router as chemistry_router;
 pub use quizzes::router as quizzes_router;
 pub use reasoning::router as reasoning_router;
+pub use ai::router as ai_router;
 
 use axum::Router;
 
@@ -46,6 +48,7 @@ pub fn protected_router() -> Router<crate::AppState> {
         .route("/auth/me", axum::routing::get(auth::get_me))
         .nest("/workspaces", workspaces)
         .merge(chemistry_router())
+        .merge(ai_router())
 }
 
 /// Combined v1 router. Public routes are merged here; the protected surface

@@ -37,7 +37,42 @@ class EmbeddingPipeline:
         logger.info(f"Starting batch embedding & indexing for {len(chunks)} chunks into collection '{collection_name}'")
         total_indexed = 0
 
-        for i in range(0, len(chunks), batch_size):
+        # Probe embedding dimension once from the first batch so the collection
+        # is created before any upsert. Qdrant rejects dim mismatches, so we
+        # create once instead of per-batch.
+        first_texts = [c.text for c in chunks[:batch_size]]
+        first_resp = await self.gateway.embed(EmbeddingRequest(input_texts=first_texts))
+        if not first_resp.embeddings:
+            logger.error("Embedding provider returned no vectors; aborting indexing.")
+            return 0
+        vector_dim = len(first_resp.embeddings[0])
+        await self.vector_store.create_collection(collection_name, vector_dim)
+
+        # Index first batch
+        points: List[VectorPoint] = []
+        for chunk, vec in zip(chunks[:batch_size], first_resp.embeddings):
+            if len(vec) != vector_dim:
+                logger.warning(f"Skipping chunk {chunk.chunk_id}: dim {len(vec)} != {vector_dim}")
+                continue
+            payload = {
+                "workspace_id": chunk.workspace_id,
+                "document_id": chunk.document_id,
+                "chunk_id": chunk.chunk_id,
+                "text": chunk.text,
+                "page_number": chunk.page_number,
+                "page_start": chunk.page_start or chunk.page_number,
+                "page_end": chunk.page_end or chunk.page_number,
+                "section_title": chunk.section_title,
+                "parent_section": chunk.parent_section,
+                "chunk_type": chunk.chunk_type,
+                "chemical_entities": chunk.chemical_entities,
+                "token_count_estimate": chunk.token_count_estimate,
+            }
+            points.append(VectorPoint(id=chunk.chunk_id, vector=vec, payload=payload))
+        await self.vector_store.upsert_points(collection_name, points)
+        total_indexed += len(points)
+
+        for i in range(batch_size, len(chunks), batch_size):
             batch = chunks[i : i + batch_size]
             texts = [c.text for c in batch]
 
@@ -45,8 +80,11 @@ class EmbeddingPipeline:
             embed_req = EmbeddingRequest(input_texts=texts)
             embed_resp = await self.gateway.embed(embed_req)
 
-            points: List[VectorPoint] = []
+            points = []
             for chunk, vec in zip(batch, embed_resp.embeddings):
+                if len(vec) != vector_dim:
+                    logger.warning(f"Skipping chunk {chunk.chunk_id}: dim {len(vec)} != {vector_dim}")
+                    continue
                 payload = {
                     "workspace_id": chunk.workspace_id,
                     "document_id": chunk.document_id,
@@ -68,10 +106,6 @@ class EmbeddingPipeline:
                     payload=payload
                 )
                 points.append(pt)
-
-            # Ensure collection exists
-            vector_dim = len(embed_resp.embeddings[0]) if embed_resp.embeddings else 384
-            await self.vector_store.create_collection(collection_name, vector_dim)
 
             # Upsert into vector store
             await self.vector_store.upsert_points(collection_name, points)

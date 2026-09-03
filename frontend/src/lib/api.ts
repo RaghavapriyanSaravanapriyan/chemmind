@@ -1,4 +1,15 @@
 export const API_BASE = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000/api/v1";
+// Direct Ollama access is a last-resort fallback only. Prefer the backend
+// proxy (GET /ai/models) so Docker/prod and CORS work correctly.
+export const OLLAMA_URL = process.env.NEXT_PUBLIC_OLLAMA_URL || "http://localhost:11434";
+
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+export function isUuid(id: string | undefined | null): boolean {
+  return !!id && UUID_RE.test(id);
+}
+export function filterUuids(ids: (string | undefined | null)[] | undefined): string[] {
+  return (ids || []).filter((id): id is string => isUuid(id)) as string[];
+}
 
 // ── AUTHENTICATION HELPERS ──
 // The Rust backend requires JWT bearer authentication for all protected
@@ -179,7 +190,27 @@ const STORAGE_KEYS = {
   WORKSPACES: "chemmind_workspaces",
   DOCUMENTS: (wsId: string) => `chemmind_docs_${wsId}`,
   MESSAGES: (wsId: string) => `chemmind_msgs_${wsId}`,
+  SELECTED_MODEL: "chemmind_selected_model",
 };
+
+export function getSelectedModel(): { id: string; name: string; desc: string } | null {
+  if (typeof window === "undefined") return null;
+  try {
+    const raw = localStorage.getItem(STORAGE_KEYS.SELECTED_MODEL);
+    return raw ? JSON.parse(raw) : null;
+  } catch {
+    return null;
+  }
+}
+
+export function saveSelectedModel(m: { id: string; name: string; desc: string }) {
+  if (typeof window === "undefined") return;
+  try {
+    localStorage.setItem(STORAGE_KEYS.SELECTED_MODEL, JSON.stringify(m));
+  } catch {
+    // ignore
+  }
+}
 
 function safeGetJSON<T>(key: string, fallback: T): T {
   if (typeof window === "undefined") return fallback;
@@ -362,18 +393,24 @@ export async function sendChatMessageSync(
   workspaceId: string,
   conversationId: string,
   prompt: string,
-  modelProvider = "llama3:latest",
+  modelProvider = "ollama",
   selectedDocIds?: string[]
 ): Promise<ChatMessage> {
+  // Only send backend-valid UUID document IDs; local-only files stay client-side.
+  const groundedIds = filterUuids(selectedDocIds);
   try {
     await ensureAuthToken();
+    // Bail early with a clear message when workspace/conversation are local-only.
+    if (!isUuid(workspaceId) || !isUuid(conversationId)) {
+      throw new Error("local-only workspace");
+    }
     const res = await fetchJson(`${API_BASE}/workspaces/${workspaceId}/conversations/${conversationId}/chat`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
         prompt,
         model_provider: modelProvider,
-        selected_document_ids: selectedDocIds,
+        selected_document_ids: groundedIds.length > 0 ? groundedIds : undefined,
       }),
     });
     if (!res.ok) throw new Error("Failed");
@@ -381,18 +418,18 @@ export async function sendChatMessageSync(
     return {
       id: data.message_id,
       sender: "assistant",
-      content: data.content,
+      content: data.mock_fallback ? `${data.content}\n\n_[Served by mock fallback: Ollama unreachable or model missing]_` : data.content,
       citations: data.citations || [],
       timestamp: Date.now(),
     };
   } catch {
     // Client-side AI fallback using local Ollama directly
     try {
-      const ollamaRes = await fetch("http://localhost:11434/api/generate", {
+      const ollamaRes = await fetch(`${OLLAMA_URL}/api/generate`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          model: modelProvider,
+          model: modelProvider === "ollama" ? "qwen2.5:1.5b" : modelProvider,
           prompt: prompt,
           stream: false
         })
@@ -436,17 +473,19 @@ export async function streamChatMessage(
   workspaceId: string,
   conversationId: string,
   prompt: string,
-  modelProvider = "llama3:latest",
+  modelProvider = "ollama",
   selectedDocIds?: string[],
   onToken?: (token: string) => void,
   onCitations?: (citations: Citation[]) => void
 ): Promise<boolean> {
   try {
     await ensureAuthToken();
+    if (!isUuid(workspaceId) || !isUuid(conversationId)) return false;
+    const groundedIds = filterUuids(selectedDocIds);
     const params = new URLSearchParams({ prompt });
     if (modelProvider) params.set("model_provider", modelProvider);
-    if (selectedDocIds && selectedDocIds.length > 0) {
-      params.set("selected_document_ids", selectedDocIds.join(","));
+    if (groundedIds.length > 0) {
+      params.set("selected_document_ids", groundedIds.join(","));
     }
     const url = `${API_BASE}/workspaces/${workspaceId}/conversations/${conversationId}/chat/stream?${params.toString()}`;
     const res = await fetchJson(url, { method: "GET" });
@@ -546,23 +585,25 @@ export async function fetchChemistryProperties(promptOrSmiles: string): Promise<
   }
 }
 
-export async function fetchQuiz(workspaceId: string, topic: string, numQuestions = 3): Promise<QuizResponse | null> {
+export async function fetchQuiz(workspaceId: string, topic: string, numQuestions = 3, selectedDocIds?: string[], modelProvider = "ollama"): Promise<QuizResponse | null> {
   try {
     await ensureAuthToken();
+    if (!isUuid(workspaceId)) throw new Error("local-only workspace");
+    const groundedIds = filterUuids(selectedDocIds);
     const res = await fetchJson(`${API_BASE}/workspaces/${workspaceId}/quizzes`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ topic, num_questions: numQuestions }),
+      body: JSON.stringify({ topic, num_questions: numQuestions, selected_document_ids: groundedIds.length > 0 ? groundedIds : undefined, model_provider: modelProvider }),
     });
     if (!res.ok) throw new Error("Failed");
     return await res.json();
   } catch {
     try {
-      const ollamaRes = await fetch("http://localhost:11434/api/generate", {
+      const ollamaRes = await fetch(`${OLLAMA_URL}/api/generate`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          model: "llama3:latest",
+          model: modelProvider === "ollama" ? "qwen2.5:1.5b" : modelProvider,
           prompt: `Generate a multiple choice quiz about ${topic} with ${numQuestions} questions. Return ONLY a valid JSON object matching this schema:\n{"title": "Quiz Title", "questions": [{"question_id": "q1", "question_text": "...", "question_type": "multiple_choice", "options": [{"option_letter": "A", "option_text": "...", "is_correct": true}, {"option_letter": "B", "option_text": "...", "is_correct": false}, {"option_letter": "C", "option_text": "...", "is_correct": false}, {"option_letter": "D", "option_text": "...", "is_correct": false}], "correct_answer": "A", "explanation": "...", "citations": []}]}`,
           stream: false,
           format: "json"
@@ -585,23 +626,25 @@ export async function fetchQuiz(workspaceId: string, topic: string, numQuestions
   }
 }
 
-export async function fetchMultiDocAnalysis(workspaceId: string, queryText: string, documentIds: string[]): Promise<MultiDocResponse | null> {
+export async function fetchMultiDocAnalysis(workspaceId: string, queryText: string, documentIds: string[], modelProvider = "ollama"): Promise<MultiDocResponse | null> {
   try {
     await ensureAuthToken();
+    if (!isUuid(workspaceId)) throw new Error("local-only workspace");
+    const groundedIds = filterUuids(documentIds);
     const res = await fetchJson(`${API_BASE}/workspaces/${workspaceId}/reasoning/multi-doc`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ query_text: queryText, document_ids: documentIds }),
+      body: JSON.stringify({ query_text: queryText, document_ids: groundedIds, model_provider: modelProvider }),
     });
     if (!res.ok) throw new Error("Failed");
     return await res.json();
   } catch {
     try {
-      const ollamaRes = await fetch("http://localhost:11434/api/generate", {
+      const ollamaRes = await fetch(`${OLLAMA_URL}/api/generate`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          model: "llama3:latest",
+          model: modelProvider === "ollama" ? "qwen2.5:1.5b" : modelProvider,
           prompt: `Perform a multi-document synthesis on the topic "${queryText}". Return ONLY a valid JSON object matching this schema:\n{"summary": "Overall summary of the analysis...", "comparison_matrix": [{"topic": "...", "document_id": "Doc 1", "excerpt": "...", "value_or_finding": "..."}], "discrepancies": [{"topic": "...", "document_id_a": "Doc 1", "claim_a": "...", "document_id_b": "Doc 2", "claim_b": "...", "nature_of_conflict": "..."}]}`,
           stream: false,
           format: "json"
@@ -622,5 +665,118 @@ export async function fetchMultiDocAnalysis(workspaceId: string, queryText: stri
       console.warn(e);
     }
     return null;
+  }
+}
+
+// ── AI MODELS / PROVIDERS / API KEYS (backend proxy first) ──
+
+export interface AiModelInfo {
+  name: string;
+  model?: string;
+  size?: number;
+  capabilities?: string[];
+  details?: Record<string, unknown>;
+}
+
+export interface AiModelsResponse {
+  models: AiModelInfo[];
+  default_llm_model: string;
+  default_embedding_model: string;
+  ollama_base_url: string;
+  ollama_reachable: boolean;
+}
+
+export async function fetchAiModels(): Promise<AiModelsResponse | null> {
+  try {
+    await ensureAuthToken();
+    const res = await fetchJson(`${API_BASE}/ai/models`);
+    if (!res.ok) throw new Error("backend models unavailable");
+    return await res.json();
+  } catch {
+    // Fallback: direct Ollama (may fail on CORS/Docker).
+    try {
+      const r = await fetch(`${OLLAMA_URL}/api/tags`);
+      if (!r.ok) return null;
+      const data = await r.json();
+      const models: AiModelInfo[] = (data.models || []).map((m: { name: string; size?: number; capabilities?: string[]; details?: Record<string, unknown> }) => ({
+        name: m.name,
+        model: m.name,
+        size: m.size,
+        capabilities: m.capabilities,
+        details: m.details,
+      }));
+      return {
+        models,
+        default_llm_model: "qwen2.5:1.5b",
+        default_embedding_model: "hf.co/CompendiumLabs/bge-base-en-v1.5-gguf:latest",
+        ollama_base_url: OLLAMA_URL,
+        ollama_reachable: true,
+      };
+    } catch {
+      return null;
+    }
+  }
+}
+
+export async function fetchAiConfig(): Promise<{ default_llm_model: string; default_embedding_model: string; ollama_base_url: string } | null> {
+  try {
+    await ensureAuthToken();
+    const res = await fetchJson(`${API_BASE}/ai/config`);
+    if (!res.ok) return null;
+    return await res.json();
+  } catch {
+    return null;
+  }
+}
+
+export async function embedTexts(texts: string[], model?: string): Promise<{ embeddings: number[][]; model: string; dimension: number; mock_fallback: boolean } | null> {
+  try {
+    await ensureAuthToken();
+    const res = await fetchJson(`${API_BASE}/ai/embed`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ texts, model }),
+    });
+    if (!res.ok) return null;
+    return await res.json();
+  } catch {
+    return null;
+  }
+}
+
+export async function fetchApiKeyStatus(): Promise<Record<string, { configured: boolean; source: string; last4?: string }> | null> {
+  try {
+    await ensureAuthToken();
+    const res = await fetchJson(`${API_BASE}/ai/api-keys/status`);
+    if (!res.ok) return null;
+    const data = await res.json();
+    return data.providers || null;
+  } catch {
+    return null;
+  }
+}
+
+export async function saveApiKey(provider: string, apiKey: string): Promise<boolean> {
+  try {
+    await ensureAuthToken();
+    const res = await fetchJson(`${API_BASE}/ai/api-keys`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      // Key travels only to backend (never persisted in localStorage).
+      body: JSON.stringify({ provider, api_key: apiKey }),
+    });
+    return res.ok;
+  } catch {
+    return false;
+  }
+}
+
+export async function deleteApiKey(provider: string): Promise<boolean> {
+  try {
+    await ensureAuthToken();
+    const res = await fetchJson(`${API_BASE}/ai/api-keys/${encodeURIComponent(provider)}`, { method: "DELETE" });
+    return res.ok;
+  } catch {
+    return false;
   }
 }

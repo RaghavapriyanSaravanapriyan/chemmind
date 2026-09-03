@@ -16,16 +16,19 @@ import {
   ChatMessage, sendChatMessageSync, createConversation, streamChatMessage, uploadDocument,
   fetchQuiz, fetchMultiDocAnalysis, QuizResponse, MultiDocResponse,
   getLocalDocuments, saveLocalDocuments,
-  getLocalMessages, saveLocalMessages
+  getLocalMessages, saveLocalMessages,
+  fetchAiModels, getSelectedModel, saveSelectedModel,
+  fetchApiKeyStatus, saveApiKey, deleteApiKey,
+  isUuid, filterUuids, LocalDocument
 } from "@/lib/api";
 
 const ease = [0.16, 1, 0.3, 1] as const;
 
 const DEFAULT_MODELS = [
-  { id: "chemmind-pro", name: "ChemMind Agentic RAG", desc: "Deep Chemistry RAG" },
+  { id: "ollama", name: "ChemMind Agentic RAG (Auto)", desc: "Backend default model" },
 ];
 
-type WorkspaceFile = { id: string; name: string; type: string; date: string; content: string; url?: string };
+type WorkspaceFile = { id: string; backendId?: string; name: string; type: string; date: string; content: string; url?: string };
 
 function WorkspacePageContent() {
   const params = useParams<{ id: string }>();
@@ -39,18 +42,21 @@ function WorkspacePageContent() {
   const [showVisualiser, setShowVisualiser] = useState(false);
   const [showQuizModal, setShowQuizModal] = useState(false);
   const [showMultiDocModal, setShowMultiDocModal] = useState(false);
-  const [aiModels, setAiModels] = useState(DEFAULT_MODELS);
-  const [selectedModel, setSelectedModel] = useState(DEFAULT_MODELS[0]);
+  const [showSettingsModal, setShowSettingsModal] = useState(false);
+  const persisted = typeof window !== "undefined" ? getSelectedModel() : null;
+  const [aiModels, setAiModels] = useState(persisted ? [persisted] : DEFAULT_MODELS);
+  const [selectedModel, setSelectedModel] = useState(persisted || DEFAULT_MODELS[0]);
   const [modelDropOpen, setModelDropOpen] = useState(false);
+  const [modelStatus, setModelStatus] = useState<string>("");
 
   // Lazily hydrate persisted documents/messages from localStorage on first
   // render (avoids synchronous setState inside the mount effect).
   const [files, setFiles] = useState<WorkspaceFile[]>(() =>
-    getLocalDocuments(projectId).map((d) => ({ id: d.id, name: d.name, type: d.type, date: d.date, content: d.content, url: d.url }))
+    getLocalDocuments(projectId).map((d: LocalDocument) => ({ id: d.id, backendId: (d as unknown as { backendId?: string }).backendId, name: d.name, type: d.type, date: d.date, content: d.content, url: d.url }))
   );
   const [activeDoc, setActiveDoc] = useState<WorkspaceFile | null>(() => {
     const saved = getLocalDocuments(projectId);
-    return saved.length > 0 ? { id: saved[0].id, name: saved[0].name, type: saved[0].type, date: saved[0].date, content: saved[0].content, url: saved[0].url } : null;
+    return saved.length > 0 ? { id: saved[0].id, backendId: (saved[0] as unknown as { backendId?: string }).backendId, name: saved[0].name, type: saved[0].type, date: saved[0].date, content: saved[0].content, url: saved[0].url } : null;
   });
   const [zoomLevel, setZoomLevel] = useState(100);
 
@@ -66,24 +72,35 @@ function WorkspacePageContent() {
 
   // Load persisted data on mount
   useEffect(() => {
-    // Fetch local Ollama models
-    fetch("http://localhost:11434/api/tags")
-      .then(res => res.json())
-      .then((data: { models?: Array<{ name: string }> }) => {
-        if (data.models && data.models.length > 0) {
+    // Prefer backend proxy for model listing (works in Docker/prod, no CORS
+    // issues). Fall back to direct Ollama only if backend is unreachable.
+    fetchAiModels()
+      .then((data) => {
+        if (data && data.models && data.models.length > 0) {
           const localModels = data.models.map((m) => ({
-            id: m.name, name: m.name, desc: "Local Ollama Model"
+            id: m.name, name: m.name, desc: data.ollama_reachable ? "Ollama (via backend)" : "Ollama",
           }));
           setAiModels(localModels);
-          setSelectedModel(localModels[0]);
+          const saved = getSelectedModel();
+          const match = saved ? localModels.find((m) => m.id === saved.id) : undefined;
+          const next = match || localModels.find((m) => m.id === data.default_llm_model) || localModels[0];
+          setSelectedModel(next);
+          saveSelectedModel(next);
+          if (!data.ollama_reachable) setModelStatus("Backend reachable, Ollama offline — mock fallback may apply");
+        } else {
+          setModelStatus("No models listed — check Ollama");
         }
       })
-      .catch(() => console.warn("Ollama not running locally"));
+      .catch(() => setModelStatus("Model listing failed"));
 
-    // Ensure a real conversation exists against the Rust backend when possible
-    createConversation(projectId).then((conv) => {
-      if (conv && conv.id) setConversationId(conv.id);
-    });
+    // Ensure a real conversation exists against the Rust backend when possible.
+    // Only backend UUID workspaces can create conversations; local-only IDs
+    // stay client-side until the workspace is created remotely.
+    if (isUuid(projectId)) {
+      createConversation(projectId).then((conv) => {
+        if (conv && conv.id && isUuid(conv.id)) setConversationId(conv.id);
+      });
+    }
   }, [projectId]);
 
   // Persist messages when they change
@@ -94,8 +111,14 @@ function WorkspacePageContent() {
   // Persist files when they change
   const updateFiles = useCallback((newFiles: WorkspaceFile[]) => {
     setFiles(newFiles);
-    saveLocalDocuments(projectId, newFiles.map(f => ({ id: f.id, name: f.name, type: f.type, date: f.date, content: f.content, url: f.url })));
+    saveLocalDocuments(projectId, newFiles.map(f => ({ id: f.id, name: f.name, type: f.type, date: f.date, content: f.content, url: f.url, backendId: f.backendId } as unknown as LocalDocument)));
   }, [projectId]);
+
+  const handleSelectModel = useCallback((m: { id: string; name: string; desc: string }) => {
+    setSelectedModel(m);
+    saveSelectedModel(m);
+    setModelDropOpen(false);
+  }, [setSelectedModel, setModelDropOpen]);
 
   // Responsive desktop panel layout
   useEffect(() => {
@@ -117,7 +140,8 @@ function WorkspacePageContent() {
     setStreamingPlaceholder("");
 
     try {
-      const docIds = activeDoc ? [activeDoc.id] : [];
+      // Ground only on backend UUIDs; local-only files have no server text.
+      const docIds = activeDoc?.backendId && isUuid(activeDoc.backendId) ? [activeDoc.backendId] : filterUuids(activeDoc ? [activeDoc.id] : []);
       let accumulated = "";
 
       // Try real-time streaming against the Rust backend first.
@@ -277,7 +301,7 @@ function WorkspacePageContent() {
                 onClose={() => setAssistantOpen(false)}
                 aiModels={aiModels}
                 selectedModel={selectedModel}
-                setSelectedModel={setSelectedModel}
+                setSelectedModel={handleSelectModel}
                 modelDropOpen={modelDropOpen}
                 setModelDropOpen={setModelDropOpen}
                 messages={messages}
@@ -285,6 +309,8 @@ function WorkspacePageContent() {
                 streamingText={streamingPlaceholder}
                 onSend={handleSendMessage}
                 activeDocName={activeDoc?.name || projectName}
+                modelStatus={modelStatus}
+                onOpenSettings={() => setShowSettingsModal(true)}
               />
             </motion.aside>
           </>
@@ -298,12 +324,17 @@ function WorkspacePageContent() {
 
       {/* Grounded Quiz Modal */}
       <AnimatePresence>
-        {showQuizModal && <QuizModal workspaceId={projectId} onClose={() => setShowQuizModal(false)} />}
+        {showQuizModal && <QuizModal workspaceId={projectId} files={files} selectedModelId={selectedModel.id} onClose={() => setShowQuizModal(false)} />}
       </AnimatePresence>
 
       {/* Multi-Doc Synthesis Modal */}
       <AnimatePresence>
-        {showMultiDocModal && <MultiDocModal workspaceId={projectId} files={files} onClose={() => setShowMultiDocModal(false)} />}
+        {showMultiDocModal && <MultiDocModal workspaceId={projectId} files={files} selectedModelId={selectedModel.id} onClose={() => setShowMultiDocModal(false)} />}
+      </AnimatePresence>
+
+      {/* API Keys / Provider Settings Modal */}
+      <AnimatePresence>
+        {showSettingsModal && <SettingsModal onClose={() => setShowSettingsModal(false)} />}
       </AnimatePresence>
     </div>
   );
@@ -355,13 +386,18 @@ function FileSidebar({ files, setFiles, activeDoc, setActiveDoc, projectName, wo
     const uploaded = e.target.files;
     if (!uploaded) return;
     
-    // Fire-and-forget backend sync: mirror each file to the Rust backend when
-    // reachable. Local rendering still works even if the backend is down.
-    Array.from(uploaded).forEach((f) => {
-      uploadDocument(workspaceId, f).catch(() => {
-        // Backend unreachable — local persistence is the fallback.
-      });
-    });
+    // Backend sync: capture backend document UUIDs for RAG grounding.
+    // Local rendering still works even if the backend is down.
+    const backendIds = await Promise.all(
+      Array.from(uploaded).map(async (f) => {
+        try {
+          const rec = await uploadDocument(workspaceId, f);
+          return rec?.id && isUuid(rec.id) ? rec.id : undefined;
+        } catch {
+          return undefined;
+        }
+      })
+    );
     
     // dynamically import mammoth
     const mammoth = await import("mammoth");
@@ -379,6 +415,7 @@ function FileSidebar({ files, setFiles, activeDoc, setActiveDoc, projectName, wo
                 const result = await mammoth.convertToHtml({ arrayBuffer });
                 resolve({
                   id: `uploaded-${Date.now()}-${idx}`,
+                  backendId: backendIds[idx],
                   name: f.name,
                   type: type,
                   date: "Just now",
@@ -388,6 +425,7 @@ function FileSidebar({ files, setFiles, activeDoc, setActiveDoc, projectName, wo
               } catch {
                  resolve({
                   id: `uploaded-${Date.now()}-${idx}`,
+                  backendId: backendIds[idx],
                   name: f.name,
                   type: type,
                   date: "Just now",
@@ -399,6 +437,7 @@ function FileSidebar({ files, setFiles, activeDoc, setActiveDoc, projectName, wo
               const result = event.target?.result as string;
               resolve({
                 id: `uploaded-${Date.now()}-${idx}`,
+                backendId: backendIds[idx],
                 name: f.name,
                 type: type,
                 date: "Just now",
@@ -511,7 +550,7 @@ function FileSidebar({ files, setFiles, activeDoc, setActiveDoc, projectName, wo
 }
 
 /* ─── ASSISTANT PANEL ─── */
-function Assistant({ query, setQuery, onClose, aiModels, selectedModel, setSelectedModel, modelDropOpen, setModelDropOpen, messages, isGenerating, streamingText, onSend, activeDocName }: {
+function Assistant({ query, setQuery, onClose, aiModels, selectedModel, setSelectedModel, modelDropOpen, setModelDropOpen, messages, isGenerating, streamingText, onSend, activeDocName, modelStatus, onOpenSettings }: {
   query: string; setQuery: (v: string) => void; onClose: () => void;
   aiModels: { id: string, name: string, desc: string }[];
   selectedModel: { id: string, name: string, desc: string };
@@ -523,6 +562,8 @@ function Assistant({ query, setQuery, onClose, aiModels, selectedModel, setSelec
   streamingText: string;
   onSend: (txt?: string) => void;
   activeDocName: string;
+  modelStatus?: string;
+  onOpenSettings?: () => void;
 }) {
   const suggestions = ["Explain reaction mechanisms", "Show thermodynamic equations", "Lookup benzene properties"];
   const dropRef = useRef<HTMLDivElement>(null);
@@ -618,7 +659,7 @@ function Assistant({ query, setQuery, onClose, aiModels, selectedModel, setSelec
           </div>
         )}
 
-        <div ref={dropRef} className="relative mb-2">
+        <div ref={dropRef} className="relative mb-2 flex items-center gap-2">
           <button
             onClick={() => setModelDropOpen(!modelDropOpen)}
             className="flex items-center gap-2 rounded-lg border border-border/60 bg-surface px-3 py-1 text-[11px] font-medium text-muted transition-colors hover:text-foreground hover:border-border"
@@ -627,6 +668,12 @@ function Assistant({ query, setQuery, onClose, aiModels, selectedModel, setSelec
             {selectedModel.name}
             <ChevronDown size={12} className={cn("transition-transform", modelDropOpen && "rotate-180")} />
           </button>
+          {onOpenSettings && (
+            <button onClick={onOpenSettings} className="rounded-lg border border-border/60 bg-surface px-2.5 py-1 text-[11px] font-medium text-muted hover:text-foreground" title="Provider & API key settings">
+              ⚙ Keys
+            </button>
+          )}
+          {modelStatus && <span className="text-[10px] text-amber-600 dark:text-amber-400">{modelStatus}</span>}
           <AnimatePresence>
             {modelDropOpen && (
               <motion.div
@@ -681,7 +728,7 @@ function Assistant({ query, setQuery, onClose, aiModels, selectedModel, setSelec
 }
 
 /* ─── GROUNDED QUIZ MODAL ─── */
-function QuizModal({ workspaceId, onClose }: { workspaceId: string; onClose: () => void }) {
+function QuizModal({ workspaceId, files, selectedModelId, onClose }: { workspaceId: string; files: WorkspaceFile[]; selectedModelId: string; onClose: () => void }) {
   const [loading, setLoading] = useState(false);
   const [quiz, setQuiz] = useState<QuizResponse | null>(null);
   const [selectedAnswers, setSelectedAnswers] = useState<Record<string, string>>({});
@@ -689,7 +736,8 @@ function QuizModal({ workspaceId, onClose }: { workspaceId: string; onClose: () 
 
   const handleGenerate = useCallback(async () => {
     setLoading(true);
-    const data = await fetchQuiz(workspaceId, "General Chemistry", 3);
+    const groundedIds = files.map((f) => f.backendId || f.id).filter((id) => isUuid(id));
+    const data = await fetchQuiz(workspaceId, "General Chemistry", 3, groundedIds, selectedModelId);
     if (data) {
       setQuiz(data);
     } else {
@@ -702,7 +750,7 @@ function QuizModal({ workspaceId, onClose }: { workspaceId: string; onClose: () 
       });
     }
     setLoading(false);
-  }, [workspaceId]);
+  }, [workspaceId, files, selectedModelId]);
 
   useEffect(() => {
     const t = setTimeout(() => { handleGenerate(); }, 0);
@@ -788,14 +836,14 @@ function QuizModal({ workspaceId, onClose }: { workspaceId: string; onClose: () 
 }
 
 /* ─── MULTI-DOC SYNTHESIS MODAL ─── */
-function MultiDocModal({ workspaceId, files, onClose }: { workspaceId: string; files: WorkspaceFile[]; onClose: () => void }) {
+function MultiDocModal({ workspaceId, files, selectedModelId, onClose }: { workspaceId: string; files: WorkspaceFile[]; selectedModelId: string; onClose: () => void }) {
   const [loading, setLoading] = useState(false);
   const [result, setResult] = useState<MultiDocResponse | null>(null);
 
   const handleSynthesize = useCallback(async () => {
     setLoading(true);
-    const docIds = files.map((f: WorkspaceFile) => f.id);
-    const data = await fetchMultiDocAnalysis(workspaceId, "Compare document claims", docIds);
+    const docIds = files.map((f: WorkspaceFile) => f.backendId || f.id).filter((id) => isUuid(id));
+    const data = await fetchMultiDocAnalysis(workspaceId, "Compare document claims", docIds, selectedModelId);
     if (data) {
       setResult(data);
     } else {
@@ -808,7 +856,7 @@ function MultiDocModal({ workspaceId, files, onClose }: { workspaceId: string; f
       });
     }
     setLoading(false);
-  }, [files, workspaceId]);
+  }, [files, workspaceId, selectedModelId]);
 
   useEffect(() => {
     const t = setTimeout(() => { handleSynthesize(); }, 0);
@@ -883,6 +931,84 @@ function MultiDocModal({ workspaceId, files, onClose }: { workspaceId: string; f
               )}
             </div>
           )}
+        </div>
+      </motion.div>
+    </motion.div>
+  );
+}
+
+/* ─── PROVIDER / API KEY SETTINGS MODAL ─── */
+function SettingsModal({ onClose }: { onClose: () => void }) {
+  const [status, setStatus] = useState<Record<string, { configured: boolean; source: string; last4?: string }> | null>(null);
+  const [provider, setProvider] = useState("openai");
+  const [keyInput, setKeyInput] = useState("");
+  const [saving, setSaving] = useState(false);
+  const [msg, setMsg] = useState("");
+
+  const refresh = useCallback(async () => {
+    const s = await fetchApiKeyStatus();
+    if (s) setStatus(s);
+  }, []);
+
+  useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    refresh();
+  }, [refresh]);
+
+  const handleSave = async () => {
+    if (!keyInput.trim()) return;
+    setSaving(true);
+    setMsg("");
+    const ok = await saveApiKey(provider, keyInput.trim());
+    setMsg(ok ? `Saved ${provider} key to backend (never stored in browser).` : `Failed to save ${provider} key.`);
+    setKeyInput("");
+    await refresh();
+    setSaving(false);
+  };
+
+  const handleDelete = async (p: string) => {
+    await deleteApiKey(p);
+    await refresh();
+  };
+
+  return (
+    <motion.div className="visualise-modal-backdrop" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} onClick={onClose}>
+      <motion.div className="visualise-modal max-w-md" initial={{ scale: 0.92, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} exit={{ scale: 0.92, opacity: 0 }} onClick={(e) => e.stopPropagation()}>
+        <div className="flex items-center justify-between border-b border-border/60 px-6 py-4">
+          <div>
+            <h3 className="text-sm font-semibold">Provider & API Keys</h3>
+            <p className="text-[11px] text-muted">Keys go to the backend only — never localStorage, never logged.</p>
+          </div>
+          <button onClick={onClose} className="flex size-8 items-center justify-center rounded-lg text-muted hover:bg-background transition-colors"><X size={18} /></button>
+        </div>
+        <div className="p-6 space-y-4 max-h-[75vh] overflow-y-auto">
+          <div className="space-y-2">
+            {(status ? Object.entries(status) : []).map(([p, info]) => (
+              <div key={p} className="flex items-center justify-between rounded-lg border border-border/60 px-3 py-2 text-xs">
+                <span className="font-semibold capitalize">{p}</span>
+                <span className="text-muted">{info.configured ? `✓ ${info.source}${info.last4 ? ` ${info.last4}` : ""}` : "not configured"}</span>
+                {info.configured && info.source === "store" && (
+                  <button onClick={() => handleDelete(p)} className="text-red-500 hover:underline">Remove</button>
+                )}
+              </div>
+            ))}
+            {!status && <p className="text-xs text-muted">Loading key status… (backend may be offline)</p>}
+          </div>
+          <div className="flex gap-2">
+            <select value={provider} onChange={(e) => setProvider(e.target.value)} className="rounded-lg border border-border/60 bg-background px-2 py-2 text-xs">
+              <option value="openai">openai</option>
+              <option value="anthropic">anthropic</option>
+              <option value="gemini">gemini</option>
+              <option value="openrouter">openrouter</option>
+              <option value="groq">groq</option>
+            </select>
+            <input type="password" value={keyInput} onChange={(e) => setKeyInput(e.target.value)} placeholder="sk-…" className="flex-1 rounded-lg border border-border/60 bg-background px-3 py-2 text-xs outline-none" />
+          </div>
+          <button onClick={handleSave} disabled={saving || !keyInput.trim()} className="w-full rounded-xl bg-foreground py-2.5 text-xs font-semibold text-background disabled:opacity-40">
+            {saving ? "Saving…" : "Save key to backend"}
+          </button>
+          {msg && <p className="text-[11px] text-muted">{msg}</p>}
+          <p className="text-[11px] text-muted">Local Ollama needs no key. Cloud providers use the stored key server-side.</p>
         </div>
       </motion.div>
     </motion.div>

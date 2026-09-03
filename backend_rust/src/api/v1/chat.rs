@@ -85,7 +85,7 @@ async fn chat_query(
     .await?;
 
     // 2. Call AI Gateway
-    let (answer_text, citations_in) = ai_gateway.generate_rag_response(payload.0).await?;
+    let (answer_text, citations_in, used_mock) = ai_gateway.generate_rag_response(payload.0).await?;
 
     // 3. Save assistant message
     let asst_msg = sqlx::query_as!(
@@ -138,6 +138,7 @@ async fn chat_query(
         sender: "assistant".to_string(),
         content: asst_msg.content,
         citations: citation_responses,
+        mock_fallback: used_mock,
     }))
 }
 

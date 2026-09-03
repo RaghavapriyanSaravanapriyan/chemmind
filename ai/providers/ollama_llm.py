@@ -106,3 +106,35 @@ class OllamaLLMProvider(BaseLLMProvider):
             except httpx.HTTPError as exc:
                 logger.error(f"Ollama streaming HTTP request failed: {exc}")
                 raise RuntimeError(f"Ollama provider streaming error: {exc}") from exc
+
+    async def list_models(self) -> List[Dict[str, Any]]:
+        """Lists models installed in Ollama via GET /api/tags."""
+        url = f"{self.base_url}/api/tags"
+        async with httpx.AsyncClient(timeout=self.timeout) as client:
+            try:
+                resp = await client.get(url)
+                resp.raise_for_status()
+                data = resp.json()
+                models = data.get("models", [])
+                # Normalise to [{name, size, details, capabilities}]
+                out: List[Dict[str, Any]] = []
+                for m in models:
+                    out.append({
+                        "name": m.get("name", ""),
+                        "model": m.get("model", m.get("name", "")),
+                        "size": m.get("size", 0),
+                        "digest": m.get("digest", ""),
+                        "details": m.get("details", {}),
+                        "capabilities": m.get("capabilities", []),
+                    })
+                return out
+            except httpx.HTTPError as exc:
+                logger.error(f"Ollama list_models failed: {exc}")
+                raise RuntimeError(f"Ollama list_models error: {exc}") from exc
+
+    async def health_check(self) -> bool:
+        try:
+            models = await self.list_models()
+            return True
+        except Exception:
+            return False

@@ -9,11 +9,11 @@ use tower::ServiceExt;
 use uuid::Uuid;
 
 async fn create_test_app(pool: PgPool) -> Router {
-    use chemmind_backend::{AppState, config::Settings, services::ai_gateway::AIGateway};
+    use chemmind_backend::{AppState, config::Settings, services::{ai_gateway::AIGateway, api_keys::ApiKeyStore}};
     use std::sync::Arc;
 
     let settings = Arc::new(Settings {
-        database_url: std::env::var("TEST_DATABASE_URL").unwrap_or_else(|_| "postgresql://postgres:postgres@localhost:5432/chemmind_test".to_string()),
+        database_url: std::env::var("TEST_DATABASE_URL").unwrap_or_else(|_| std::env::var("DATABASE_URL").unwrap_or_else(|_| "postgresql://postgres:postgres@localhost:5432/chemmind_test".to_string())),
         secret_key: "test_secret_key_for_testing_only_32bytes_minimum_length".to_string(),
         ..Default::default()
     });
@@ -24,6 +24,7 @@ async fn create_test_app(pool: PgPool) -> Router {
         pool,
         settings,
         ai_gateway,
+        api_keys: ApiKeyStore::new(),
     };
 
     chemmind_backend::create_app(state)

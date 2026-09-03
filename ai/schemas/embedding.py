@@ -9,3 +9,4 @@ class EmbeddingResponse(BaseModel):
     embeddings: List[List[float]]
     model: str
     total_tokens: Optional[int] = None
+    dimension: Optional[int] = None

@@ -1,7 +1,11 @@
 use std::sync::Arc;
 
 use chemmind_backend::{
-    AppState, config::Settings, create_app, db::create_pool, services::ai_gateway::AIGateway,
+    AppState,
+    config::Settings,
+    create_app,
+    db::create_pool,
+    services::{ai_gateway::AIGateway, api_keys::ApiKeyStore},
 };
 use tracing_subscriber::{layer::SubscriberExt, util::SubscriberInitExt};
 
@@ -25,11 +29,17 @@ async fn main() -> anyhow::Result<()> {
         pool: pool.clone(),
         settings: settings.clone(),
         ai_gateway,
+        api_keys: ApiKeyStore::new(),
     };
 
     let app = create_app(app_state);
 
-    let addr = std::net::SocketAddr::from(([0, 0, 0, 0], 8000));
+    let port: u16 = std::env::var("PORT")
+        .or_else(|_| std::env::var("CHEMMIND_PORT"))
+        .ok()
+        .and_then(|v| v.parse().ok())
+        .unwrap_or(8000);
+    let addr = std::net::SocketAddr::from(([0, 0, 0, 0], port));
     tracing::info!("Server starting on {}", addr);
 
     let listener = tokio::net::TcpListener::bind(addr).await?;
